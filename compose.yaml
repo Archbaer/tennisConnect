@@ -1,0 +1,22 @@
+services:
+  database:
+    image: postgis/postgis:17-3.5
+    # ponytail: AMD64 emulation on Apple Silicon; use an ARM64 image for native performance.
+    platform: linux/amd64
+    environment:
+      POSTGRES_DB: tennisconnect
+      POSTGRES_USER: tennisconnect
+      POSTGRES_PASSWORD: local-development-only
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - database-data:/var/lib/postgresql/data
+      - ./migrations/000001_users.sql:/docker-entrypoint-initdb.d/001-users.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tennisconnect -d tennisconnect"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+
+volumes:
+  database-data:
