@@ -2,7 +2,7 @@
 
 ## Local backend
 
-Requirements: Go 1.25, Docker, and Docker Compose.
+Requirements: Go 1.25, Docker, Docker Compose, and OpenSSL.
 
 Start PostgreSQL/PostGIS:
 
@@ -10,14 +10,40 @@ Start PostgreSQL/PostGIS:
 docker compose up -d database
 ```
 
-Configure and run the API:
+For a database created before the auth migration, apply it once after recreating the container with the updated migration mount:
 
 ```sh
-export DATABASE_URL='postgres://tennisconnect:local-development-only@localhost:5432/tennisconnect?sslmode=disable'
+docker compose up -d --force-recreate database
+docker compose exec -T database psql -U tennisconnect -d tennisconnect -f /docker-entrypoint-initdb.d/000002_auth.sql
+```
+
+Create local configuration once. Keep the generated keys stable: replacing them makes existing account lookups and encrypted data unreadable.
+
+```sh
+umask 077
+{
+  printf "%s\n" "DATABASE_URL='postgres://tennisconnect:local-development-only@localhost:5432/tennisconnect?sslmode=disable'"
+  printf "%s\n" "APP_BASE_URL='http://localhost:8080'"
+  printf "%s\n" "EMAIL_FROM='Tennis Connect <auth@example.com>'"
+  printf "%s\n" "RESEND_API_KEY='replace-with-real-resend-key'"
+  printf "EMAIL_ENCRYPTION_KEY='%s'\n" "$(openssl rand -base64 32)"
+  printf "EMAIL_HMAC_KEY='%s'\n" "$(openssl rand -base64 32)"
+  printf "%s\n" "COOKIE_SECURE='false'" "TRUST_PROXY_HEADERS='false'"
+} > .env
+```
+
+Set a real Resend key in `.env`, then load configuration and run:
+
+```sh
+set -a
+source .env
+set +a
 go run .
 ```
 
-The credentials above are for the local Docker database only. Production must use TLS and secret-managed credentials.
+Local credentials and insecure cookies are for the local Docker database and HTTP development only. Production requires TLS, secure cookies, secret-managed keys, and a production Resend sender. Trust proxy headers only behind a trusted proxy that appends the real client address.
+
+Email normalization lowercases the domain only. The local part keeps its case because SMTP providers may treat local parts as case-sensitive.
 
 Check database-backed health:
 
@@ -25,12 +51,19 @@ Check database-backed health:
 curl --fail http://localhost:8080/healthz
 ```
 
-Run checks:
+Create the isolated test database once:
 
 ```sh
-gofmt -w main.go main_test.go
-go test ./...
-go vet ./...
+docker compose exec -T database psql -U tennisconnect -d tennisconnect -c 'CREATE DATABASE tennisconnect_test;'
 ```
 
-`PORT` is optional and defaults to `8080`. The server refuses invalid configuration or an unavailable database at startup.
+Run all checks, including real database authentication tests:
+
+```sh
+gofmt -w *.go
+go mod verify
+go vet ./...
+TEST_DATABASE_URL='postgres://tennisconnect:local-development-only@localhost:5432/tennisconnect_test?sslmode=disable' go test -race ./...
+```
+
+Tests reset only the database named `tennisconnect_test`; setup refuses other database names. `PORT` defaults to `8080`. The server refuses invalid configuration or an unavailable database at startup.
