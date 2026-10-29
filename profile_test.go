@@ -85,10 +85,13 @@ func TestValidateProfileBlocksContactDetails(t *testing.T) {
 		"www.example.com/player",
 		"instagram.com/player",
 		"t.me/player",
+		"discord.gg/player",
 		"example.com/player",
+		"example.dev",
 		"DM @player",
 		"DM:@player",
 		"Call +44 7700 900123",
+		"Call 07700 900123",
 	} {
 		t.Run(text, func(t *testing.T) {
 			input := validProfileInput()
@@ -106,10 +109,18 @@ func TestValidateProfileBlocksContactDetails(t *testing.T) {
 }
 
 func TestValidateProfileAllowsNonContactText(t *testing.T) {
-	input := validProfileInput()
-	input.Bio = "I play Monday 18:00-21:00. My ranking is 10.5."
-	if _, err := validateProfile(input); err != nil {
-		t.Fatalf("validateProfile() rejected ordinary text: %v", err)
+	for _, text := range []string{
+		"I play Monday 18:00-21:00. My ranking is 10.5.",
+		"Available 2026-10-29",
+		"Played 2026.10.29",
+	} {
+		t.Run(text, func(t *testing.T) {
+			input := validProfileInput()
+			input.Bio = text
+			if _, err := validateProfile(input); err != nil {
+				t.Fatalf("validateProfile() rejected ordinary text: %v", err)
+			}
+		})
 	}
 }
 

@@ -33,15 +33,30 @@ type profileInput struct {
 
 var (
 	contactURL    = regexp.MustCompile(`(?i)(?:https?://|www\.)\S+`)
-	contactDomain = regexp.MustCompile(`(?i)\b(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+(?:com|net|org|io|me|co|uk)(?::\d+)?(?:/\S*)?`)
+	contactDomain = regexp.MustCompile(`(?i)\b(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,63}(?::\d+)?(?:/\S*)?`)
 	contactEmail  = regexp.MustCompile(`[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}`)
 	contactSocial = regexp.MustCompile(`(?i)(?:instagram\.com|instagr\.am)/\S*|(?:^|[^A-Za-z0-9_])@[A-Za-z0-9_.-]+`)
 	contactPhone  = regexp.MustCompile(`\+?\d[\d\s().-]{6,}\d`)
 )
 
+func containsPhoneNumber(text string) bool {
+	for _, candidate := range contactPhone.FindAllString(text, -1) {
+		digits := 0
+		for _, r := range candidate {
+			if r >= '0' && r <= '9' {
+				digits++
+			}
+		}
+		if digits >= 10 {
+			return true
+		}
+	}
+	return false
+}
+
 func containsContactDetails(text string) bool {
 	return contactURL.MatchString(text) || contactDomain.MatchString(text) || contactEmail.MatchString(text) ||
-		contactSocial.MatchString(text) || contactPhone.MatchString(text)
+		contactSocial.MatchString(text) || containsPhoneNumber(text)
 }
 
 func validateProfile(input profileInput) (profileInput, error) {
@@ -90,7 +105,7 @@ func validateProfile(input profileInput) (profileInput, error) {
 		return input, errors.New("invalid availability count")
 	}
 
-	seen := make(map[string]bool, len(input.Availability))
+	seen := make(map[availabilityInput]struct{}, len(input.Availability))
 	for _, slot := range input.Availability {
 		if slot.Weekday < 1 || slot.Weekday > 7 {
 			return input, errors.New("invalid weekday")
@@ -106,11 +121,10 @@ func validateProfile(input profileInput) (profileInput, error) {
 		if !start.Before(end) {
 			return input, errors.New("availability must stay within one day")
 		}
-		key := fmt.Sprintf("%d/%s/%s", slot.Weekday, slot.Start, slot.End)
-		if seen[key] {
+		if _, exists := seen[slot]; exists {
 			return input, errors.New("duplicate availability")
 		}
-		seen[key] = true
+		seen[slot] = struct{}{}
 	}
 	return input, nil
 }
@@ -169,13 +183,17 @@ func (s *profileService) put(w http.ResponseWriter, r *http.Request, userID stri
 		writeError(w, http.StatusServiceUnavailable, "temporarily unavailable")
 		return
 	}
-	for _, slot := range input.Availability {
-		if _, err = tx.ExecContext(ctx, `
-			INSERT INTO availability (profile_id, weekday, start_time, end_time)
-			VALUES ($1, $2, $3, $4)`, userID, slot.Weekday, slot.Start, slot.End); err != nil {
-			writeError(w, http.StatusServiceUnavailable, "temporarily unavailable")
-			return
-		}
+	values := make([]string, 0, len(input.Availability))
+	args := make([]any, 0, 4*len(input.Availability))
+	for i, slot := range input.Availability {
+		values = append(values, fmt.Sprintf("($%d,$%d,$%d,$%d)", 4*i+1, 4*i+2, 4*i+3, 4*i+4))
+		args = append(args, userID, slot.Weekday, slot.Start, slot.End)
+	}
+	if _, err = tx.ExecContext(ctx, `
+		INSERT INTO availability (profile_id, weekday, start_time, end_time)
+		VALUES `+strings.Join(values, ","), args...); err != nil {
+		writeError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+		return
 	}
 	if err := tx.Commit(); err != nil {
 		writeError(w, http.StatusServiceUnavailable, "temporarily unavailable")
@@ -215,7 +233,7 @@ func (s *profileService) get(w http.ResponseWriter, r *http.Request, userID stri
 	}
 	rows, err := tx.QueryContext(ctx, `
 		SELECT weekday, start_time, end_time FROM availability
-		WHERE profile_id = $1 ORDER BY weekday, start_time`, userID)
+		WHERE profile_id = $1 ORDER BY weekday, start_time, end_time`, userID)
 	if err != nil {
 		writeError(w, http.StatusServiceUnavailable, "temporarily unavailable")
 		return

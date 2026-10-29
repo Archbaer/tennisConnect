@@ -1,3 +1,5 @@
+BEGIN;
+
 CREATE EXTENSION IF NOT EXISTS postgis;
 
 CREATE TABLE users (
@@ -9,3 +11,5 @@ CREATE TABLE users (
     last_active_at timestamptz NOT NULL DEFAULT now(),
     deleted_at timestamptz
 );
+
+COMMIT;

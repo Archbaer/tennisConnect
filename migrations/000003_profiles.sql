@@ -1,3 +1,5 @@
+BEGIN;
+
 CREATE TABLE profiles (
     user_id uuid PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
     display_name text NOT NULL CHECK (char_length(display_name) BETWEEN 1 AND 50),
@@ -24,3 +26,5 @@ CREATE TABLE availability (
     CHECK (end_time > start_time),
     UNIQUE (profile_id, weekday, start_time, end_time)
 );
+
+COMMIT;

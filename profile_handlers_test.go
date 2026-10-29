@@ -145,6 +145,43 @@ func TestPutProfileRejectsCrossOriginRequest(t *testing.T) {
 	}
 }
 
+func TestGetProfileOrdersAvailabilityByStartAndEnd(t *testing.T) {
+	service, userID, _ := newTestProfileService(t)
+	input := validProfileInput()
+	input.Availability = []availabilityInput{
+		{Weekday: 2, Start: "18:00", End: "21:00"},
+		{Weekday: 2, Start: "18:00", End: "20:00"},
+	}
+	putProfileRequest(service, userID, input)
+	response := getProfileRequest(service, userID)
+	var got profileInput
+	if err := json.NewDecoder(response.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Availability) != 2 || got.Availability[0].End != "20:00" || got.Availability[1].End != "21:00" {
+		t.Fatalf("availability order = %#v, want 20:00 then 21:00", got.Availability)
+	}
+}
+
+func TestPutProfileAcceptsTwentySlots(t *testing.T) {
+	service, userID, _ := newTestProfileService(t)
+	input := validProfileInput()
+	input.Availability = nil
+	for i := 0; i < 20; i++ {
+		input.Availability = append(input.Availability, availabilityInput{Weekday: 1, Start: fmt.Sprintf("%02d:00", i), End: fmt.Sprintf("%02d:00", i+1)})
+	}
+	if response := putProfileRequest(service, userID, input); response.Code != http.StatusOK {
+		t.Fatalf("PUT status = %d, body = %s", response.Code, response.Body.String())
+	}
+	var count int
+	if err := testDB.QueryRow("SELECT count(*) FROM availability WHERE profile_id = $1", userID).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 20 {
+		t.Fatalf("availability rows = %d, want 20", count)
+	}
+}
+
 func TestConcurrentProfileUpdatesKeepAvailabilityConsistent(t *testing.T) {
 	service, userID, _ := newTestProfileService(t)
 	first := validProfileInput()
