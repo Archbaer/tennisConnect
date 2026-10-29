@@ -37,6 +37,7 @@ var (
 	contactEmail  = regexp.MustCompile(`[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}`)
 	contactSocial = regexp.MustCompile(`(?i)(?:instagram\.com|instagr\.am)/\S*|(?:^|[^A-Za-z0-9_])@[A-Za-z0-9_.-]+`)
 	contactPhone  = regexp.MustCompile(`\+?\d[\d\s().-]{6,}\d`)
+	datePrefix    = regexp.MustCompile(`(?i)(?:available|availability|played|play)(?:\s+(?:on|at))?\s*:?\s*$`)
 )
 
 func isDateCandidate(candidate string) bool {
@@ -48,15 +49,20 @@ func isDateCandidate(candidate string) bool {
 	return false
 }
 
+func hasDatePrefix(text string) bool {
+	return datePrefix.MatchString(text)
+}
+
 func containsPhoneNumber(text string) bool {
-	for _, candidate := range contactPhone.FindAllString(text, -1) {
+	for _, location := range contactPhone.FindAllStringIndex(text, -1) {
+		candidate := text[location[0]:location[1]]
 		digits := 0
 		for _, r := range candidate {
 			if r >= '0' && r <= '9' {
 				digits++
 			}
 		}
-		if digits >= 8 && !isDateCandidate(candidate) {
+		if digits >= 8 && (!isDateCandidate(candidate) || !hasDatePrefix(text[:location[0]])) {
 			return true
 		}
 	}
