@@ -92,6 +92,8 @@ func TestValidateProfileBlocksContactDetails(t *testing.T) {
 		"DM:@player",
 		"Call +44 7700 900123",
 		"Call 07700 900123",
+		"Call 1234 5678",
+		"Call 123 456 789",
 	} {
 		t.Run(text, func(t *testing.T) {
 			input := validProfileInput()
@@ -113,6 +115,8 @@ func TestValidateProfileAllowsNonContactText(t *testing.T) {
 		"I play Monday 18:00-21:00. My ranking is 10.5.",
 		"Available 2026-10-29",
 		"Played 2026.10.29",
+		"Available 29-10-2026",
+		"Played 29/10/2026",
 	} {
 		t.Run(text, func(t *testing.T) {
 			input := validProfileInput()

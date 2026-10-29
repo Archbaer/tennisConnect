@@ -39,6 +39,15 @@ var (
 	contactPhone  = regexp.MustCompile(`\+?\d[\d\s().-]{6,}\d`)
 )
 
+func isDateCandidate(candidate string) bool {
+	for _, layout := range []string{"2006-01-02", "2006.01.02", "02-01-2006", "02.01.2006"} {
+		if _, err := time.Parse(layout, candidate); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
 func containsPhoneNumber(text string) bool {
 	for _, candidate := range contactPhone.FindAllString(text, -1) {
 		digits := 0
@@ -47,7 +56,7 @@ func containsPhoneNumber(text string) bool {
 				digits++
 			}
 		}
-		if digits >= 10 {
+		if digits >= 8 && !isDateCandidate(candidate) {
 			return true
 		}
 	}
