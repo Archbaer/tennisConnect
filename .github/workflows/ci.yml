@@ -9,6 +9,22 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      TEST_DATABASE_URL: postgres://tennisconnect:local-development-only@localhost:5432/tennisconnect_test?sslmode=disable
+    services:
+      database:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_DB: tennisconnect_test
+          POSTGRES_USER: tennisconnect
+          POSTGRES_PASSWORD: local-development-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U tennisconnect -d tennisconnect_test"
+          --health-interval 2s
+          --health-timeout 2s
+          --health-retries 20
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

@@ -19,8 +19,15 @@ import (
 )
 
 type config struct {
-	databaseURL string
-	address     string
+	databaseURL        string
+	address            string
+	appBaseURL         string
+	emailFrom          string
+	resendAPIKey       string
+	emailEncryptionKey []byte
+	emailHMACKey       []byte
+	cookieSecure       bool
+	trustProxy         bool
 }
 
 func loadConfig() (config, error) {
@@ -40,7 +47,11 @@ func loadConfig() (config, error) {
 		return config{}, errors.New("PORT must be between 1 and 65535")
 	}
 
-	return config{databaseURL: databaseURL, address: ":" + port}, nil
+	cfg := config{databaseURL: databaseURL, address: ":" + port}
+	if err := loadAuthConfig(&cfg); err != nil {
+		return config{}, err
+	}
+	return cfg, nil
 }
 
 func healthHandler(ping func(context.Context) error) http.HandlerFunc {
@@ -56,6 +67,18 @@ func healthHandler(ping func(context.Context) error) http.HandlerFunc {
 		}
 		_, _ = io.WriteString(w, "ok\n")
 	}
+}
+
+func newMux(auth *authService, ping func(context.Context) error) *http.ServeMux {
+	mux := http.NewServeMux()
+	mux.Handle("GET /healthz", healthHandler(ping))
+	mux.Handle("POST /api/v1/auth/link", http.HandlerFunc(auth.requestLink))
+	mux.Handle("GET /auth/verify", http.HandlerFunc(auth.confirmLink))
+	mux.Handle("POST /api/v1/auth/verify", http.HandlerFunc(auth.verifyLink))
+	mux.Handle("POST /api/v1/auth/register", http.HandlerFunc(auth.register))
+	mux.Handle("POST /api/v1/auth/sign-out", http.HandlerFunc(auth.signOut))
+	mux.Handle("GET /api/v1/auth/session", http.HandlerFunc(auth.session))
+	return mux
 }
 
 func main() {
@@ -85,15 +108,29 @@ func run() error {
 		return errors.New("database is unavailable")
 	}
 
-	mux := http.NewServeMux()
-	mux.Handle("GET /healthz", healthHandler(db.PingContext))
+	mailer := resendMailer{
+		apiKey:   cfg.resendAPIKey,
+		from:     cfg.emailFrom,
+		endpoint: "https://api.resend.com/emails",
+		client:   &http.Client{Timeout: 5 * time.Second},
+	}
+	auth := &authService{
+		db:                 db,
+		appBaseURL:         cfg.appBaseURL,
+		emailEncryptionKey: cfg.emailEncryptionKey,
+		emailHMACKey:       cfg.emailHMACKey,
+		cookieSecure:       cfg.cookieSecure,
+		trustProxy:         cfg.trustProxy,
+		sendMagicLink:      mailer.sendMagicLink,
+	}
 	server := &http.Server{
 		Addr:              cfg.address,
-		Handler:           mux,
+		Handler:           newMux(auth, db.PingContext),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      10 * time.Second,
 		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    16 * 1024,
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -103,18 +140,29 @@ func run() error {
 		serverError <- server.ListenAndServe()
 	}()
 
-	select {
-	case err := <-serverError:
-		if errors.Is(err, http.ErrServerClosed) {
+	cleanupTicker := time.NewTicker(time.Hour)
+	defer cleanupTicker.Stop()
+	for {
+		select {
+		case err := <-serverError:
+			if errors.Is(err, http.ErrServerClosed) {
+				return nil
+			}
+			return fmt.Errorf("HTTP server failed: %w", err)
+		case <-cleanupTicker.C:
+			cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			err := auth.cleanupExpired(cleanupCtx)
+			cancel()
+			if err != nil {
+				log.Printf("auth cleanup failed: %v", err)
+			}
+		case <-ctx.Done():
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			if err := server.Shutdown(shutdownCtx); err != nil {
+				return errors.New("HTTP server shutdown failed")
+			}
 			return nil
 		}
-		return fmt.Errorf("HTTP server failed: %w", err)
-	case <-ctx.Done():
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if err := server.Shutdown(shutdownCtx); err != nil {
-			return errors.New("HTTP server shutdown failed")
-		}
-		return nil
 	}
 }
