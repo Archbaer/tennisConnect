@@ -291,9 +291,13 @@ func (a *authService) requestLink(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"message": "check your email"})
 }
 
-func (a *authService) validOrigin(r *http.Request) bool {
+func requestOriginAllowed(r *http.Request, expected string) bool {
 	origin := r.Header.Get("Origin")
-	return origin == "" || strings.EqualFold(origin, a.appBaseURL)
+	return origin == "" || strings.EqualFold(origin, expected)
+}
+
+func (a *authService) validOrigin(r *http.Request) bool {
+	return requestOriginAllowed(r, a.appBaseURL)
 }
 
 func decodeJSON(w http.ResponseWriter, r *http.Request, destination any) bool {

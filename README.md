@@ -17,6 +17,13 @@ docker compose up -d --force-recreate database
 docker compose exec -T database psql -U tennisconnect -d tennisconnect -f /docker-entrypoint-initdb.d/000002_auth.sql
 ```
 
+For a database upgrading from the passwordless-auth phase, apply the profile migration once:
+
+```sh
+docker compose up -d --force-recreate database
+docker compose exec -T database psql -U tennisconnect -d tennisconnect -f /docker-entrypoint-initdb.d/000003_profiles.sql
+```
+
 Create local configuration once. Keep the generated keys stable: replacing them makes existing account lookups and encrypted data unreadable.
 
 ```sh
@@ -50,6 +57,29 @@ Check database-backed health:
 ```sh
 curl --fail http://localhost:8080/healthz
 ```
+
+## Profile API
+
+`GET /api/v1/profile` returns the authenticated player's profile. `PUT /api/v1/profile` creates or replaces it with JSON:
+
+```json
+{
+  "display_name": "Alex",
+  "gender": "woman",
+  "skill_level": "intermediate",
+  "ranking": "10.5",
+  "bio": "Tuesday evening rallies.",
+  "gender_preference": "all",
+  "min_age": 25,
+  "max_age": 45,
+  "skill_tolerance": 1,
+  "availability": [
+    {"weekday": 2, "start": "18:00", "end": "21:00"}
+  ]
+}
+```
+
+Weekdays use ISO numbering: Monday 1 through Sunday 7. Times are `Europe/London` local times in 24-hour `HH:MM` format and cannot cross midnight. One to 20 unique slots are required. Skill tolerance 0 means exact skill only; 1 allows adjacent levels. Gender is `woman` or `man`; gender preference is `women`, `men`, or `all`. Ranking is optional. Display names and bios cannot contain contact details.
 
 Create the isolated test database once:
 

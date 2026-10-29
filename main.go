@@ -71,6 +71,7 @@ func healthHandler(ping func(context.Context) error) http.HandlerFunc {
 
 func newMux(auth *authService, ping func(context.Context) error) *http.ServeMux {
 	mux := http.NewServeMux()
+	profiles := &profileService{db: auth.db, appBaseURL: auth.appBaseURL}
 	mux.Handle("GET /healthz", healthHandler(ping))
 	mux.Handle("POST /api/v1/auth/link", http.HandlerFunc(auth.requestLink))
 	mux.Handle("GET /auth/verify", http.HandlerFunc(auth.confirmLink))
@@ -78,6 +79,8 @@ func newMux(auth *authService, ping func(context.Context) error) *http.ServeMux 
 	mux.Handle("POST /api/v1/auth/register", http.HandlerFunc(auth.register))
 	mux.Handle("POST /api/v1/auth/sign-out", http.HandlerFunc(auth.signOut))
 	mux.Handle("GET /api/v1/auth/session", http.HandlerFunc(auth.session))
+	mux.Handle("GET /api/v1/profile", auth.requireUser(profiles.get))
+	mux.Handle("PUT /api/v1/profile", auth.requireUser(profiles.put))
 	return mux
 }
 
