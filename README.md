@@ -90,7 +90,7 @@ Successful sign-in responses contain `{"message":"signed in"}`. Errors use `{"er
 }
 ```
 
-Weekdays use ISO numbering: Monday 1 through Sunday 7. Times are `Europe/London` local times in 24-hour `HH:MM` format and cannot cross midnight. One to 20 unique slots are required. Skill tolerance 0 means exact skill only; 1 allows adjacent levels. Gender is `woman` or `man`; gender preference is `women`, `men`, or `all`. Ranking is optional. Display names and bios cannot contain contact details.
+Weekdays use ISO numbering: Monday 1 through Sunday 7. Times are `Europe/London` local times in 24-hour `HH:MM` format and cannot cross midnight. One to 20 unique slots are required. Skill tolerance 0 means exact skill only; 1 allows adjacent levels. Gender is `woman` or `man`; gender preference is `women`, `men`, or `all`. Ranking is optional. Display names and bios cannot contain contact details. Numeric phone/date-shaped candidates with eight or more digits are rejected to avoid ambiguous contact information; write dates with month names instead, such as `29 October 2026`.
 
 Create the isolated test database once:
 

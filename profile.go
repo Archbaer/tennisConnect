@@ -36,33 +36,18 @@ var (
 	contactDomain = regexp.MustCompile(`(?i)\b(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,63}(?::\d+)?(?:/\S*)?`)
 	contactEmail  = regexp.MustCompile(`[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}`)
 	contactSocial = regexp.MustCompile(`(?i)(?:instagram\.com|instagr\.am)/\S*|(?:^|[^A-Za-z0-9_])@[A-Za-z0-9_.-]+`)
-	contactPhone  = regexp.MustCompile(`\+?\d[\d\s().-]{6,}\d`)
-	datePrefix    = regexp.MustCompile(`(?i)(?:available|availability|played|play)(?:\s+(?:on|at))?\s*:?\s*$`)
+	contactPhone  = regexp.MustCompile(`\+?\d[\d\s()./-]{6,}\d`)
 )
 
-func isDateCandidate(candidate string) bool {
-	for _, layout := range []string{"2006-01-02", "2006.01.02", "02-01-2006", "02.01.2006"} {
-		if _, err := time.Parse(layout, candidate); err == nil {
-			return true
-		}
-	}
-	return false
-}
-
-func hasDatePrefix(text string) bool {
-	return datePrefix.MatchString(text)
-}
-
 func containsPhoneNumber(text string) bool {
-	for _, location := range contactPhone.FindAllStringIndex(text, -1) {
-		candidate := text[location[0]:location[1]]
+	for _, candidate := range contactPhone.FindAllString(text, -1) {
 		digits := 0
 		for _, r := range candidate {
 			if r >= '0' && r <= '9' {
 				digits++
 			}
 		}
-		if digits >= 8 && (!isDateCandidate(candidate) || !hasDatePrefix(text[:location[0]])) {
+		if digits >= 8 {
 			return true
 		}
 	}

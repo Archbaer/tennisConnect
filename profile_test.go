@@ -115,8 +115,15 @@ func TestValidateProfileBlocksContactDetails(t *testing.T) {
 }
 
 func TestValidateProfileAllowsNonContactText(t *testing.T) {
+	input := validProfileInput()
+	input.Bio = "I play Monday 18:00-21:00. My ranking is 10.5."
+	if _, err := validateProfile(input); err != nil {
+		t.Fatalf("validateProfile() rejected ordinary text: %v", err)
+	}
+}
+
+func TestValidateProfileRejectsAmbiguousDateShapedNumbers(t *testing.T) {
 	for _, text := range []string{
-		"I play Monday 18:00-21:00. My ranking is 10.5.",
 		"Available 2026-10-29",
 		"Played 2026.10.29",
 		"Available 29-10-2026",
@@ -126,8 +133,8 @@ func TestValidateProfileAllowsNonContactText(t *testing.T) {
 		t.Run(text, func(t *testing.T) {
 			input := validProfileInput()
 			input.Bio = text
-			if _, err := validateProfile(input); err != nil {
-				t.Fatalf("validateProfile() rejected ordinary text: %v", err)
+			if _, err := validateProfile(input); err == nil {
+				t.Fatalf("validateProfile() allowed ambiguous date/phone sequence %q", text)
 			}
 		})
 	}
