@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/binary"
 	"image"
+	"image/color"
 	"image/jpeg"
 	"image/png"
 	"testing"
@@ -110,6 +112,48 @@ func TestValidateImageDeterministicJPEG(t *testing.T) {
 	}
 	if !bytes.Equal(first.data, second.data) {
 		t.Fatal("identical input produced different JPEG bytes")
+	}
+}
+
+func TestValidateImageAppliesEXIFOrientation(t *testing.T) {
+	red := color.RGBA{R: 255, A: 255}
+	green := color.RGBA{G: 255, A: 255}
+	blue := color.RGBA{B: 255, A: 255}
+	white := color.RGBA{R: 255, G: 255, B: 255, A: 255}
+	tests := []struct {
+		name        string
+		orientation int
+		width       int
+		height      int
+		colors      [4]color.RGBA
+	}{
+		{name: "identity", orientation: 1, width: 20, height: 30, colors: [4]color.RGBA{red, green, blue, white}},
+		{name: "mirror horizontal", orientation: 2, width: 20, height: 30, colors: [4]color.RGBA{green, red, white, blue}},
+		{name: "rotate 180", orientation: 3, width: 20, height: 30, colors: [4]color.RGBA{white, blue, green, red}},
+		{name: "mirror vertical", orientation: 4, width: 20, height: 30, colors: [4]color.RGBA{blue, white, red, green}},
+		{name: "transpose", orientation: 5, width: 30, height: 20, colors: [4]color.RGBA{red, blue, green, white}},
+		{name: "rotate 90", orientation: 6, width: 30, height: 20, colors: [4]color.RGBA{blue, red, white, green}},
+		{name: "transverse", orientation: 7, width: 30, height: 20, colors: [4]color.RGBA{white, green, blue, red}},
+		{name: "rotate 270", orientation: 8, width: 30, height: 20, colors: [4]color.RGBA{green, white, red, blue}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := validateImage(photoTestJPEGWithOrientation(t, test.orientation), "image/jpeg")
+			if err != nil {
+				t.Fatalf("validateImage() returned error: %v", err)
+			}
+			decoded, err := jpeg.Decode(bytes.NewReader(got.data))
+			if err != nil {
+				t.Fatalf("decode validated JPEG: %v", err)
+			}
+			if decoded.Bounds().Dx() != test.width || decoded.Bounds().Dy() != test.height {
+				t.Fatalf("oriented dimensions = %dx%d, want %dx%d", decoded.Bounds().Dx(), decoded.Bounds().Dy(), test.width, test.height)
+			}
+			points := [4]image.Point{{X: 2, Y: 2}, {X: test.width - 3, Y: 2}, {X: 2, Y: test.height - 3}, {X: test.width - 3, Y: test.height - 3}}
+			for i, point := range points {
+				photoTestAssertColor(t, decoded, point, test.colors[i])
+			}
+		})
 	}
 }
 
@@ -237,18 +281,71 @@ func photoTestPNG(t *testing.T, width, height int) []byte {
 	return buffer.Bytes()
 }
 
+func photoTestJPEGWithOrientation(t *testing.T, orientation int) []byte {
+	t.Helper()
+	input := image.NewRGBA(image.Rect(0, 0, 20, 30))
+	for y := 0; y < 30; y++ {
+		for x := 0; x < 20; x++ {
+			switch {
+			case x < 10 && y < 15:
+				input.SetRGBA(x, y, color.RGBA{R: 255, A: 255})
+			case y < 15:
+				input.SetRGBA(x, y, color.RGBA{G: 255, A: 255})
+			case x < 10:
+				input.SetRGBA(x, y, color.RGBA{B: 255, A: 255})
+			default:
+				input.SetRGBA(x, y, color.RGBA{R: 255, G: 255, B: 255, A: 255})
+			}
+		}
+	}
+	var encoded bytes.Buffer
+	if err := jpeg.Encode(&encoded, input, &jpeg.Options{Quality: 100}); err != nil {
+		t.Fatalf("encode orientation fixture: %v", err)
+	}
+
+	tiff := make([]byte, 26)
+	copy(tiff, "II")
+	binary.LittleEndian.PutUint16(tiff[2:], 42)
+	binary.LittleEndian.PutUint32(tiff[4:], 8)
+	binary.LittleEndian.PutUint16(tiff[8:], 1)
+	binary.LittleEndian.PutUint16(tiff[10:], 0x0112)
+	binary.LittleEndian.PutUint16(tiff[12:], 3)
+	binary.LittleEndian.PutUint32(tiff[14:], 1)
+	binary.LittleEndian.PutUint16(tiff[18:], uint16(orientation))
+	payload := append([]byte("Exif\x00\x00"), tiff...)
+	return photoTestAddEXIF(encoded.Bytes(), payload)
+}
+
+func photoTestAssertColor(t *testing.T, source image.Image, point image.Point, expected color.RGBA) {
+	t.Helper()
+	got := [4]uint32{}
+	got[0], got[1], got[2], got[3] = source.At(point.X, point.Y).RGBA()
+	want := [4]uint32{uint32(expected.R) * 0x101, uint32(expected.G) * 0x101, uint32(expected.B) * 0x101, uint32(expected.A) * 0x101}
+	const tolerance = 32 * 0x101
+	for i := range got {
+		if got[i]+tolerance < want[i] || got[i] > want[i]+tolerance {
+			t.Errorf("color at %v channel %d = %d, want %d +/- %d", point, i, got[i], want[i], tolerance)
+		}
+	}
+}
+
 func photoTestJPEGWithEXIF(t *testing.T) []byte {
 	t.Helper()
 	input := photoTestJPEG(t, 4, 3)
 	payload := []byte("Exif\x00\x00II*\x00\x08\x00\x00\x00\x00\x00private-exif-marker")
+	output := photoTestAddEXIF(input, payload)
+	if !bytes.Contains(output, []byte("private-exif-marker")) {
+		t.Fatal("JPEG fixture does not contain EXIF marker")
+	}
+	return output
+}
+
+func photoTestAddEXIF(input, payload []byte) []byte {
 	segmentLength := len(payload) + 2
 	output := make([]byte, 0, len(input)+len(payload)+4)
 	output = append(output, input[:2]...)
 	output = append(output, 0xff, 0xe1, byte(segmentLength>>8), byte(segmentLength))
 	output = append(output, payload...)
 	output = append(output, input[2:]...)
-	if !bytes.Contains(output, []byte("private-exif-marker")) {
-		t.Fatal("JPEG fixture does not contain EXIF marker")
-	}
 	return output
 }
