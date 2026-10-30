@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/binary"
@@ -9,6 +10,7 @@ import (
 	"image/color"
 	"image/jpeg"
 	"image/png"
+	"os"
 	"testing"
 )
 
@@ -248,6 +250,71 @@ func TestPhotoSchemaRejectsInvalidMetadata(t *testing.T) {
 				t.Fatal("photo schema accepted invalid metadata")
 			}
 		})
+	}
+}
+
+func TestPhotoMigrationPreservesExistingUsers(t *testing.T) {
+	if testDB == nil {
+		t.Skip("TEST_DATABASE_URL not set")
+	}
+	ctx := context.Background()
+	conn, err := testDB.Conn(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		for _, query := range []string{"SET search_path TO public", "DROP SCHEMA IF EXISTS photo_upgrade CASCADE"} {
+			if _, err := conn.ExecContext(ctx, query); err != nil {
+				t.Errorf("photo upgrade cleanup %q: %v", query, err)
+			}
+		}
+		if err := conn.Close(); err != nil {
+			t.Errorf("close photo upgrade connection: %v", err)
+		}
+	})
+	if _, err := conn.ExecContext(ctx, "DROP SCHEMA IF EXISTS photo_upgrade CASCADE; CREATE SCHEMA photo_upgrade; SET search_path TO photo_upgrade;"); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"000001_users.sql", "000002_auth.sql", "000003_profiles.sql"} {
+		contents, err := os.ReadFile("migrations/" + name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := conn.ExecContext(ctx, string(contents)); err != nil {
+			t.Fatalf("apply pre-photo migration %s: %v", name, err)
+		}
+	}
+
+	digest := sha256.Sum256([]byte("upgrade-owner"))
+	var ownerID string
+	if err := conn.QueryRowContext(ctx, `
+		INSERT INTO users (email_encrypted, email_lookup_hmac, birth_date)
+		VALUES ($1, $2, '1990-01-01') RETURNING id`, []byte{1}, digest[:]).Scan(&ownerID); err != nil {
+		t.Fatalf("seed pre-photo user: %v", err)
+	}
+	contents, err := os.ReadFile("migrations/000004_photos.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := conn.ExecContext(ctx, string(contents)); err != nil {
+		t.Fatalf("apply photo upgrade: %v", err)
+	}
+
+	var storedDigest []byte
+	if err := conn.QueryRowContext(ctx, "SELECT email_lookup_hmac FROM users WHERE id = $1", ownerID).Scan(&storedDigest); err != nil {
+		t.Fatalf("read preserved user: %v", err)
+	}
+	if !bytes.Equal(storedDigest, digest[:]) {
+		t.Fatal("photo upgrade changed existing user data")
+	}
+	var status photoModerationStatus
+	if err := conn.QueryRowContext(ctx, `
+		INSERT INTO photos (owner_id, object_key, display_order)
+		VALUES ($1, 'photos/upgrade.jpg', 1) RETURNING moderation_status`, ownerID).Scan(&status); err != nil {
+		t.Fatalf("insert upgraded user's photo: %v", err)
+	}
+	if status != photoModerationPending {
+		t.Fatalf("upgraded photo status = %q, want pending", status)
 	}
 }
 
