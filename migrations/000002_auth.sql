@@ -1,3 +1,5 @@
+BEGIN;
+
 CREATE TABLE login_tokens (
     token_hash bytea PRIMARY KEY CHECK (octet_length(token_hash) = 32),
     email_encrypted bytea NOT NULL CHECK (octet_length(email_encrypted) > 0),
@@ -26,3 +28,5 @@ CREATE TABLE auth_rate_limits (
 );
 
 CREATE INDEX auth_rate_limits_window_idx ON auth_rate_limits (window_start);
+
+COMMIT;

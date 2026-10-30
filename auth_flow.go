@@ -279,12 +279,12 @@ func (a *authService) signOut(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"message": "signed out"})
 }
 
-func (a *authService) session(w http.ResponseWriter, r *http.Request) {
+func (a *authService) authenticatedUser(w http.ResponseWriter, r *http.Request) (string, bool) {
 	preventAuthCaching(w)
 	cookie, err := r.Cookie("tennisconnect_session")
 	if err != nil || !validAuthToken(cookie.Value) {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
-		return
+		return "", false
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 	defer cancel()
@@ -296,10 +296,27 @@ func (a *authService) session(w http.ResponseWriter, r *http.Request) {
 		WHERE s.token_hash = $1 AND s.expires_at > now() AND u.deleted_at IS NULL`, hash[:]).Scan(&userID)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
-		return
+		return "", false
 	}
 	if err != nil {
 		writeError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+		return "", false
+	}
+	return userID, true
+}
+
+func (a *authService) requireUser(next func(http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userID, ok := a.authenticatedUser(w, r)
+		if !ok {
+			return
+		}
+		next(w, r, userID)
+	}
+}
+
+func (a *authService) session(w http.ResponseWriter, r *http.Request) {
+	if _, ok := a.authenticatedUser(w, r); !ok {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

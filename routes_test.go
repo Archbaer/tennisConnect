@@ -25,6 +25,8 @@ func TestMuxRoutesAuthEndpoints(t *testing.T) {
 		{name: "register", method: http.MethodPost, path: "/api/v1/auth/register", body: "token=invalid&birth_date=2000-01-01", contentType: "application/x-www-form-urlencoded", want: http.StatusUnauthorized},
 		{name: "sign out", method: http.MethodPost, path: "/api/v1/auth/sign-out", want: http.StatusOK},
 		{name: "session", method: http.MethodGet, path: "/api/v1/auth/session", want: http.StatusUnauthorized},
+		{name: "get profile unauthorized", method: http.MethodGet, path: "/api/v1/profile", want: http.StatusUnauthorized},
+		{name: "put profile unauthorized", method: http.MethodPut, path: "/api/v1/profile", body: `{}`, contentType: "application/json", want: http.StatusUnauthorized},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
