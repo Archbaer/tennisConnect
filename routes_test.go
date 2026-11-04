@@ -9,7 +9,7 @@ import (
 
 func TestMuxRoutesAuthEndpoints(t *testing.T) {
 	auth, _ := newTestAuth(t)
-	handler := newMux(auth, testDB.PingContext)
+	handler := newMux(auth, photoStorage{}, testDB.PingContext)
 	tests := []struct {
 		name        string
 		method      string
@@ -27,6 +27,8 @@ func TestMuxRoutesAuthEndpoints(t *testing.T) {
 		{name: "session", method: http.MethodGet, path: "/api/v1/auth/session", want: http.StatusUnauthorized},
 		{name: "get profile unauthorized", method: http.MethodGet, path: "/api/v1/profile", want: http.StatusUnauthorized},
 		{name: "put profile unauthorized", method: http.MethodPut, path: "/api/v1/profile", body: `{}`, contentType: "application/json", want: http.StatusUnauthorized},
+		{name: "upload url unauthorized", method: http.MethodPost, path: "/api/v1/photos/upload-url", want: http.StatusUnauthorized},
+		{name: "process photo unauthorized", method: http.MethodPost, path: "/api/v1/photos/00000000-0000-4000-8000-000000000000/process", want: http.StatusUnauthorized},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

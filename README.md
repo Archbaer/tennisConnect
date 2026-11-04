@@ -24,6 +24,13 @@ docker compose up -d --force-recreate database
 docker compose exec -T database psql --single-transaction --set=ON_ERROR_STOP=1 -U tennisconnect -d tennisconnect -f /docker-entrypoint-initdb.d/000003_profiles.sql
 ```
 
+For a database upgrading from the profile phase, apply the photos migration once:
+
+```sh
+docker compose up -d --force-recreate database
+docker compose exec -T database psql --single-transaction --set=ON_ERROR_STOP=1 -U tennisconnect -d tennisconnect -f /docker-entrypoint-initdb.d/000004_photos.sql
+```
+
 Create local configuration once. Keep the generated keys stable: replacing them makes existing account lookups and encrypted data unreadable.
 
 ```sh
@@ -47,6 +54,8 @@ source .env
 set +a
 go run .
 ```
+
+Private photo storage is optional locally. Set `S3_BUCKET` and `AWS_REGION` (for example `eu-west-2`) plus credentials from the standard AWS chain to enable uploads. When no credentials exist, set `AWS_EC2_METADATA_DISABLED=true` so the AWS SDK does not wait on instance metadata. Without `S3_BUCKET` the server starts normally and the photo endpoints return 503; `AWS_REGION` is required whenever `S3_BUCKET` is set. The bucket must block all public access, enforce TLS-only access, and allow browser `PUT` from the app origin with the `content-type` header. Never apply a public ACL.
 
 Local credentials and insecure cookies are for the local Docker database and HTTP development only. Production requires TLS, secure cookies, secret-managed keys, and a production Resend sender. Trust proxy headers only behind a trusted proxy that appends the real client address.
 
@@ -91,6 +100,14 @@ Successful sign-in responses contain `{"message":"signed in"}`. Errors use `{"er
 ```
 
 Weekdays use ISO numbering: Monday 1 through Sunday 7. Times are `Europe/London` local times in 24-hour `HH:MM` format and cannot cross midnight. One to 20 unique slots are required. Skill tolerance 0 means exact skill only; 1 allows adjacent levels. Gender is `woman` or `man`; gender preference is `women`, `men`, or `all`. Ranking is optional. Display names and bios cannot contain contact details. Numeric phone/date-shaped candidates with eight or more digits are rejected to avoid ambiguous contact information; write dates with month names instead, such as `29 October 2026`.
+
+## Photos API
+
+`POST /api/v1/photos/upload-url` creates one pending photo slot and returns `201 {"photo_id":"...","upload_url":"...","expires_in_seconds":300}`. The presigned URL is a bearer credential valid for five minutes for exactly that object key: never log, cache, or share it. A server-side session and same-origin `Origin` are required, and an owner can hold at most three photos; a fourth request returns 409. The API never receives the image bytes.
+
+`POST /api/v1/photos/{id}/process` re-validates the uploaded bytes server-side (JPEG/PNG/WebP, 5 MB, 20 MP), strips EXIF, resizes the longest side to at most 1600 px, stores the sanitized JPEG under a new key, and deletes the original. It returns `200 {"photo_id":"...","status":"pending"}`; a photo stays pending until moderation. Missing, oversized, malformed, foreign, or already-moderated photos return 400, 404, or 409 as appropriate. Replaying the upload URL cannot overwrite the sanitized object. Pending photos are never public: this phase has no public photo route and no presigned `GET`, and an abandoned upload slot older than one hour is reclaimed on the next upload attempt once all three slots are full.
+
+SigV4 presigned PUTs cannot bound the body size, so oversized or non-image uploads are rejected and deleted during processing. Browser uploads need a bucket CORS rule allowing `PUT` with the `content-type` header from the app origin; an S3 lifecycle rule on the `photos/` prefix can remove objects orphaned by abandoned uploads.
 
 Create the isolated test database once:
 

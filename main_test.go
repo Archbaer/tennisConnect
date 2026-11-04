@@ -20,6 +20,8 @@ func setValidConfigEnv(t *testing.T) {
 	t.Setenv("EMAIL_HMAC_KEY", base64.StdEncoding.EncodeToString(bytesOf(2, 32)))
 	t.Setenv("COOKIE_SECURE", "false")
 	t.Setenv("TRUST_PROXY_HEADERS", "false")
+	t.Setenv("S3_BUCKET", "")
+	t.Setenv("AWS_REGION", "")
 }
 
 func bytesOf(value byte, count int) []byte {
@@ -175,5 +177,30 @@ func TestHealthHandlerDatabaseUnavailable(t *testing.T) {
 	}
 	if response.Body.String() != "unavailable\n" {
 		t.Fatalf("body = %q, want %q", response.Body.String(), "unavailable\n")
+	}
+}
+
+func TestLoadConfigS3Settings(t *testing.T) {
+	setValidConfigEnv(t)
+	cfg, err := loadConfig()
+	if err != nil {
+		t.Fatalf("loadConfig() without S3: %v", err)
+	}
+	if cfg.s3Bucket != "" || cfg.s3Region != "" {
+		t.Fatalf("unexpected S3 config: bucket %q region %q", cfg.s3Bucket, cfg.s3Region)
+	}
+
+	t.Setenv("S3_BUCKET", "tennisconnect-photos")
+	if _, err := loadConfig(); err == nil {
+		t.Fatal("loadConfig() accepted S3_BUCKET without AWS_REGION")
+	}
+
+	t.Setenv("AWS_REGION", "eu-west-2")
+	cfg, err = loadConfig()
+	if err != nil {
+		t.Fatalf("loadConfig() with S3: %v", err)
+	}
+	if cfg.s3Bucket != "tennisconnect-photos" || cfg.s3Region != "eu-west-2" {
+		t.Fatalf("S3 config = bucket %q region %q", cfg.s3Bucket, cfg.s3Region)
 	}
 }

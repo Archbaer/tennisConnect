@@ -28,6 +28,8 @@ type config struct {
 	emailHMACKey       []byte
 	cookieSecure       bool
 	trustProxy         bool
+	s3Bucket           string
+	s3Region           string
 }
 
 func loadConfig() (config, error) {
@@ -51,6 +53,14 @@ func loadConfig() (config, error) {
 	if err := loadAuthConfig(&cfg); err != nil {
 		return config{}, err
 	}
+	if bucket := os.Getenv("S3_BUCKET"); bucket != "" {
+		region := os.Getenv("AWS_REGION")
+		if region == "" {
+			return config{}, errors.New("AWS_REGION is required when S3_BUCKET is set")
+		}
+		cfg.s3Bucket = bucket
+		cfg.s3Region = region
+	}
 	return cfg, nil
 }
 
@@ -69,9 +79,10 @@ func healthHandler(ping func(context.Context) error) http.HandlerFunc {
 	}
 }
 
-func newMux(auth *authService, ping func(context.Context) error) *http.ServeMux {
+func newMux(auth *authService, photoStore photoStorage, ping func(context.Context) error) *http.ServeMux {
 	mux := http.NewServeMux()
 	profiles := &profileService{db: auth.db, appBaseURL: auth.appBaseURL}
+	photos := &photoService{db: auth.db, appBaseURL: auth.appBaseURL, storage: photoStore}
 	mux.Handle("GET /healthz", healthHandler(ping))
 	mux.Handle("POST /api/v1/auth/link", http.HandlerFunc(auth.requestLink))
 	mux.Handle("GET /auth/verify", http.HandlerFunc(auth.confirmLink))
@@ -81,6 +92,8 @@ func newMux(auth *authService, ping func(context.Context) error) *http.ServeMux 
 	mux.Handle("GET /api/v1/auth/session", http.HandlerFunc(auth.session))
 	mux.Handle("GET /api/v1/profile", auth.requireUser(profiles.get))
 	mux.Handle("PUT /api/v1/profile", auth.requireUser(profiles.put))
+	mux.Handle("POST /api/v1/photos/upload-url", auth.requireUser(photos.uploadURL))
+	mux.Handle("POST /api/v1/photos/{id}/process", auth.requireUser(photos.process))
 	return mux
 }
 
@@ -111,6 +124,11 @@ func run() error {
 		return errors.New("database is unavailable")
 	}
 
+	photoStore, err := newPhotoStorage(context.Background(), cfg)
+	if err != nil {
+		return err
+	}
+
 	mailer := resendMailer{
 		apiKey:   cfg.resendAPIKey,
 		from:     cfg.emailFrom,
@@ -128,7 +146,7 @@ func run() error {
 	}
 	server := &http.Server{
 		Addr:              cfg.address,
-		Handler:           newMux(auth, db.PingContext),
+		Handler:           newMux(auth, photoStore, db.PingContext),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      10 * time.Second,
