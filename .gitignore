@@ -3,3 +3,4 @@
 !docs/design/*.md
 .env
 .claude/
+.archify/
