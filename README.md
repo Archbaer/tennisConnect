@@ -1,5 +1,21 @@
 # Tennis Connect
 
+## Project layout
+
+- `cmd/api` — server entrypoint (`go run ./cmd/api`).
+- `internal/app` — route wiring, HTTP server, graceful stop.
+- `internal/config` — environment configuration and validation.
+- `internal/httpapi` — JSON, error, origin and cache helpers.
+- `internal/auth` — magic links, sessions, rate limits, Resend sender.
+- `internal/profile` — profile and availability.
+- `internal/photos` — validation, upload, processing, moderation state.
+- `internal/storage` — private S3 presigning and object access.
+- `internal/moderation` — Sightengine client and verdict policy.
+- `internal/textguard` — contact-detail detection shared by profile and moderation.
+- `internal/saferead` — bounded reader shared by storage and moderation.
+- `internal/testutil` — PostGIS test harness and fixtures.
+- `migrations/` — operational SQL migrations; `docs/design/` — design artifacts.
+
 ## Local backend
 
 Requirements: Go 1.25, Docker, Docker Compose, and OpenSSL.
@@ -52,7 +68,7 @@ Set a real Resend key in `.env`, then load configuration and run:
 set -a
 source .env
 set +a
-go run .
+go run ./cmd/api
 ```
 
 Private photo storage is optional locally. Set `S3_BUCKET` and `AWS_REGION` (for example `eu-west-2`) plus credentials from the standard AWS chain to enable uploads. When no credentials exist, set `AWS_EC2_METADATA_DISABLED=true` so the AWS SDK does not wait on instance metadata. Without `S3_BUCKET` the server starts normally and the photo endpoints return 503; `AWS_REGION` is required whenever `S3_BUCKET` is set. The bucket must block all public access, enforce TLS-only access, and allow browser `PUT` from the app origin with the `content-type` header. Never apply a public ACL.
