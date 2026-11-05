@@ -1,4 +1,5 @@
 *.md
 !README.md
+!docs/design/*.md
 .env
 .claude/
