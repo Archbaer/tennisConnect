@@ -22,6 +22,8 @@ func setValidConfigEnv(t *testing.T) {
 	t.Setenv("TRUST_PROXY_HEADERS", "false")
 	t.Setenv("S3_BUCKET", "")
 	t.Setenv("AWS_REGION", "")
+	t.Setenv("SIGHTENGINE_API_USER", "")
+	t.Setenv("SIGHTENGINE_API_SECRET", "")
 }
 
 func bytesOf(value byte, count int) []byte {
@@ -202,5 +204,26 @@ func TestLoadConfigS3Settings(t *testing.T) {
 	}
 	if cfg.s3Bucket != "tennisconnect-photos" || cfg.s3Region != "eu-west-2" {
 		t.Fatalf("S3 config = bucket %q region %q", cfg.s3Bucket, cfg.s3Region)
+	}
+}
+
+func TestLoadConfigModerationIsBothOrNeither(t *testing.T) {
+	setValidConfigEnv(t)
+	if _, err := loadConfig(); err != nil {
+		t.Fatalf("loadConfig() without moderation: %v", err)
+	}
+
+	t.Setenv("SIGHTENGINE_API_USER", "user")
+	if _, err := loadConfig(); err == nil {
+		t.Fatal("loadConfig() accepted a moderation user without a secret")
+	}
+
+	t.Setenv("SIGHTENGINE_API_SECRET", "secret")
+	cfg, err := loadConfig()
+	if err != nil {
+		t.Fatalf("loadConfig() with moderation: %v", err)
+	}
+	if cfg.sightengineUser != "user" || cfg.sightengineSecret != "secret" {
+		t.Fatalf("moderation config = %q / %q", cfg.sightengineUser, cfg.sightengineSecret)
 	}
 }

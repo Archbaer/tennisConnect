@@ -103,11 +103,21 @@ Weekdays use ISO numbering: Monday 1 through Sunday 7. Times are `Europe/London`
 
 ## Photos API
 
-`POST /api/v1/photos/upload-url` creates one pending photo slot and returns `201 {"photo_id":"...","upload_url":"...","expires_in_seconds":300}`. The presigned URL is a bearer credential valid for five minutes for exactly that object key: never log, cache, or share it. A server-side session and same-origin `Origin` are required, and an owner can hold at most three photos; a fourth request returns 409. The API never receives the image bytes.
+`POST /api/v1/photos/upload-url` creates one pending photo slot and returns `201 {"photo_id":"...","upload_url":"...","expires_in_seconds":300}`. The presigned URL is a bearer credential valid for five minutes for exactly that object key: never log, cache, or share it. A server-side session and same-origin `Origin` are required, and an owner can hold at most three photos; a fourth upload request while three slots are held returns 409. The API never receives the image bytes.
 
-`POST /api/v1/photos/{id}/process` re-validates the uploaded bytes server-side (JPEG/PNG/WebP, 5 MB, 20 MP), strips EXIF, resizes the longest side to at most 1600 px, stores the sanitized JPEG under a new key, and deletes the original. It returns `200 {"photo_id":"...","status":"pending"}`; a photo stays pending until moderation. Missing, oversized, malformed, foreign, or already-moderated photos return 400, 404, or 409 as appropriate. Replaying the upload URL cannot overwrite the sanitized object. Pending photos are never public: this phase has no public photo route and no presigned `GET`, and an abandoned upload slot older than one hour is reclaimed on the next upload attempt once all three slots are full.
+`POST /api/v1/photos/{id}/process` re-validates the uploaded bytes server-side (JPEG/PNG/WebP, 5 MB, 20 MP), strips EXIF, resizes the longest side to at most 1600 px, stores the sanitized JPEG under a new key, deletes the original, and moderates the result (see below). It returns `200 {"photo_id":"...","status":"approved"|"rejected"|"pending"}`. Missing, oversized, malformed, foreign, or already-moderated photos return 400, 404, or 409 as appropriate. Replaying the upload URL cannot overwrite the sanitized object. Pending and rejected photos are never public: this phase has no public photo route, and an abandoned upload slot older than one hour is reclaimed on the next upload attempt once all three slots are full.
 
 SigV4 presigned PUTs cannot bound the body size, so oversized or non-image uploads are rejected and deleted during processing. Browser uploads need a bucket CORS rule allowing `PUT` with the `content-type` header from the app origin; an S3 lifecycle rule on the `photos/` prefix can remove objects orphaned by abandoned uploads.
+
+### Moderation
+
+`/process` checks the sanitized image synchronously before answering. A clean photo with one visible, unobstructed face returns `200 {"photo_id":"...","status":"approved"}`. A rejected photo returns `200 {"photo_id":"...","status":"rejected"}`, keeps its row, deletes its object, and exposes no image URL or stated reason; the owner's next upload reuses the freed slot. An inconclusive score returns `200 {"status":"pending"}`: not approved, not visible to anyone, and not retried automatically. A provider timeout, transport error, malformed response, or database failure returns 503 and leaves the photo pending for a manual retry.
+
+Moderation needs `SIGHTENGINE_API_USER` and `SIGHTENGINE_API_SECRET`; set both or neither. With neither, uploads still work but `/process` returns 503 and pending rows are reclaimed after an hour. Each process call sends the EXIF-free, at-most-1600-px JPEG to Sightengine, which the provider bills as up to four operations; only a fully decoded success containing every required field can change a photo's state.
+
+Reject at 0.5 and approve below 0.4 on the safety keys, require a face box of at least 1 % with `obstruction.none` at least 0.5, and reject OCR text that trips the fail-closed contact-detail rule (including 8+ digit numbers such as scoreboards). These thresholds are product policy, not vendor guidance.
+
+`GET /api/v1/photos` lists the owner's photos as `{"photos":[{"photo_id","display_order","status"}]}` in display order, never with URLs. `GET /api/v1/photos/{id}/url` returns a five-minute, owner-only URL for an approved or pending photo; rejected, foreign, and unknown ids all return the same 404. Neither response may be cached. Other players' photos are not served in this phase.
 
 Create the isolated test database once:
 

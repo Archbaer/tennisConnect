@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"image/jpeg"
@@ -11,23 +12,27 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
 
 type fakePhotoStorage struct {
-	mu              sync.Mutex
-	objects         map[string][]byte
-	presignedKeys   []string
-	presignExpiries []time.Duration
-	deletedKeys     []string
-	getCalls        int
-	getHook         func(call int)
-	getError        error
-	putError        error
-	deleteError     error
-	presignError    error
-	blockGet        bool
+	mu                 sync.Mutex
+	objects            map[string][]byte
+	presignedKeys      []string
+	presignExpiries    []time.Duration
+	deletedKeys        []string
+	getCalls           int
+	getHook            func(call int)
+	getError           error
+	putError           error
+	deleteError        error
+	presignError       error
+	presignGetError    error
+	blockGet           bool
+	presignedGetKeys   []string
+	presignGetExpiries []time.Duration
 }
 
 func (f *fakePhotoStorage) storage() photoStorage {
@@ -67,6 +72,16 @@ func (f *fakePhotoStorage) storage() photoStorage {
 			}
 			return append([]byte(nil), data...), nil
 		},
+		presignGet: func(_ context.Context, key string, expires time.Duration) (string, error) {
+			f.mu.Lock()
+			defer f.mu.Unlock()
+			if f.presignGetError != nil {
+				return "", f.presignGetError
+			}
+			f.presignedGetKeys = append(f.presignedGetKeys, key)
+			f.presignGetExpiries = append(f.presignGetExpiries, expires)
+			return "https://storage.example.test/" + key + "?X-Amz-Signature=get-secret", nil
+		},
 		put: func(_ context.Context, key string, data []byte) error {
 			f.mu.Lock()
 			defer f.mu.Unlock()
@@ -100,7 +115,7 @@ func newPhotoTestService(t *testing.T) (*photoService, string, *authService, *fa
 	auth, _ := newTestAuth(t)
 	userID := insertTestUser(t, auth, "photographer@example.com")
 	fake := &fakePhotoStorage{objects: make(map[string][]byte)}
-	service := &photoService{db: testDB, appBaseURL: "http://localhost:8080", storage: fake.storage()}
+	service := &photoService{db: testDB, appBaseURL: "http://localhost:8080", storage: fake.storage(), moderate: approveModeration}
 	return service, userID, auth, fake
 }
 
@@ -130,6 +145,21 @@ func processPhotoRequestContext(ctx context.Context, service *photoService, user
 	}
 	response := httptest.NewRecorder()
 	service.process(response, request, userID)
+	return response
+}
+
+func getPhotoURLRequest(service *photoService, userID, photoID string) *httptest.ResponseRecorder {
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/photos/"+photoID+"/url", nil)
+	request.SetPathValue("id", photoID)
+	response := httptest.NewRecorder()
+	service.photoURL(response, request, userID)
+	return response
+}
+
+func getPhotoListRequest(service *photoService, userID string) *httptest.ResponseRecorder {
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/photos", nil)
+	response := httptest.NewRecorder()
+	service.photoList(response, request, userID)
 	return response
 }
 
@@ -316,7 +346,7 @@ func TestProcessMovesSanitizedObjectToNewKey(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
 		t.Fatal(err)
 	}
-	if body.PhotoID != photoID || body.Status != string(photoModerationPending) {
+	if body.PhotoID != photoID || body.Status != string(photoModerationApproved) {
 		t.Fatalf("body = %#v", body)
 	}
 
@@ -343,7 +373,7 @@ func TestProcessMovesSanitizedObjectToNewKey(t *testing.T) {
 	}
 }
 
-func TestProcessSecondCallSucceedsAndStaysPending(t *testing.T) {
+func TestProcessSecondCallAfterVerdictIs409(t *testing.T) {
 	service, userID, _, fake := newPhotoTestService(t)
 	const originalKey = "photos/original"
 	fake.objects[originalKey] = photoTestJPEG(t, 40, 30)
@@ -353,12 +383,11 @@ func TestProcessSecondCallSucceedsAndStaysPending(t *testing.T) {
 		t.Fatalf("first process status = %d, body = %s", response.Code, response.Body.String())
 	}
 	firstKey := storedPhotoKey(t, photoID)
-	if response := processPhotoRequest(service, userID, photoID); response.Code != http.StatusOK {
-		t.Fatalf("second process status = %d, body = %s", response.Code, response.Body.String())
+	if response := processPhotoRequest(service, userID, photoID); response.Code != http.StatusConflict {
+		t.Fatalf("second process status = %d, want 409", response.Code)
 	}
-	secondKey := storedPhotoKey(t, photoID)
-	if secondKey == firstKey {
-		t.Fatal("second process did not move the object")
+	if secondKey := storedPhotoKey(t, photoID); secondKey != firstKey {
+		t.Fatalf("second process changed the key: %q -> %q", firstKey, secondKey)
 	}
 	if fake.objectCount() != 1 {
 		t.Fatalf("stored object count = %d, want 1", fake.objectCount())
@@ -367,15 +396,8 @@ func TestProcessSecondCallSucceedsAndStaysPending(t *testing.T) {
 	if err := testDB.QueryRow("SELECT moderation_status FROM photos WHERE id = $1", photoID).Scan(&status); err != nil {
 		t.Fatal(err)
 	}
-	if status != photoModerationPending {
-		t.Fatalf("status after second process = %q, want pending", status)
-	}
-	var stored []byte
-	fake.mu.Lock()
-	stored = fake.objects[secondKey]
-	fake.mu.Unlock()
-	if bytes.Contains(stored, []byte("Exif")) {
-		t.Fatal("second process stored EXIF")
+	if status != photoModerationApproved {
+		t.Fatalf("status after second process = %q, want approved", status)
 	}
 }
 
@@ -690,7 +712,7 @@ func TestProcessStorageErrorsAreBoundedAndGeneric(t *testing.T) {
 
 func TestNoPublicRouteServesPhotoObjects(t *testing.T) {
 	service, _, auth, _ := newPhotoTestService(t)
-	handler := newMux(auth, service.storage, testDB.PingContext)
+	handler := newMux(auth, service.storage, approveModeration, testDB.PingContext)
 	for _, path := range []string{"/api/v1/photos/00000000-0000-4000-8000-000000000000", "/api/v1/photos/00000000-0000-4000-8000-000000000000/process"} {
 		request := httptest.NewRequest(http.MethodGet, path, nil)
 		response := httptest.NewRecorder()
@@ -772,5 +794,602 @@ func TestUploadURLCleanupDeleteFailureIsGeneric(t *testing.T) {
 		if strings.Contains(logged.String(), leaked) {
 			t.Fatalf("log leaks %q: %s", leaked, logged.String())
 		}
+	}
+}
+
+type fakeModeration struct {
+	mu      sync.Mutex
+	calls   int
+	verdict moderationVerdict
+	err     error
+	images  [][]byte
+	hook    func(call int)
+}
+
+func (f *fakeModeration) moderate(_ context.Context, image []byte) (moderationVerdict, error) {
+	f.mu.Lock()
+	f.calls++
+	call := f.calls
+	verdict, err, hook := f.verdict, f.err, f.hook
+	f.images = append(f.images, append([]byte(nil), image...))
+	f.mu.Unlock()
+	if hook != nil {
+		hook(call)
+	}
+	return verdict, err
+}
+
+func (f *fakeModeration) callCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.calls
+}
+
+func approveModeration(context.Context, []byte) (moderationVerdict, error) {
+	return moderationVerdict{status: photoModerationApproved, reference: "op-test"}, nil
+}
+
+type photoURLBody struct {
+	PhotoID          string                `json:"photo_id"`
+	Status           photoModerationStatus `json:"status"`
+	URL              string                `json:"url"`
+	ExpiresInSeconds int                   `json:"expires_in_seconds"`
+}
+
+type photoListBody struct {
+	Photos []struct {
+		PhotoID      string                `json:"photo_id"`
+		DisplayOrder int                   `json:"display_order"`
+		Status       photoModerationStatus `json:"status"`
+	} `json:"photos"`
+}
+
+func TestProcessApprovesCleanPhoto(t *testing.T) {
+	service, userID, _, fake := newPhotoTestService(t)
+	const originalKey = "photos/approve"
+	fake.objects[originalKey] = photoTestJPEGWithEXIF(t)
+	photoID := insertPhotoRow(t, userID, originalKey, 1, photoModerationPending, 0)
+	moderation := &fakeModeration{verdict: moderationVerdict{status: photoModerationApproved, reference: "op-approved"}}
+	service.moderate = moderation.moderate
+
+	response := processPhotoRequest(service, userID, photoID)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	var body struct {
+		PhotoID string                `json:"photo_id"`
+		Status  photoModerationStatus `json:"status"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Status != photoModerationApproved {
+		t.Fatalf("body status = %q, want approved", body.Status)
+	}
+	var status photoModerationStatus
+	var reference sql.NullString
+	if err := testDB.QueryRow("SELECT moderation_status, provider_reference FROM photos WHERE id = $1", photoID).
+		Scan(&status, &reference); err != nil {
+		t.Fatal(err)
+	}
+	if status != photoModerationApproved || reference.String != "op-approved" {
+		t.Fatalf("row = %q / %q", status, reference.String)
+	}
+	if moderation.callCount() != 1 {
+		t.Fatalf("moderation calls = %d", moderation.callCount())
+	}
+	image := moderation.images[0]
+	if bytes.Contains(image, []byte("Exif")) || bytes.Contains(image, []byte("private-exif-marker")) {
+		t.Fatal("moderator received raw EXIF bytes")
+	}
+	config, err := jpeg.DecodeConfig(bytes.NewReader(image))
+	if err != nil || config.Width > maxPhotoDimension || config.Height > maxPhotoDimension {
+		t.Fatalf("moderator image = %dx%d, %v", config.Width, config.Height, err)
+	}
+	eligible, err := photoApprovedForDiscovery(context.Background(), testDB, userID)
+	if err != nil || !eligible {
+		t.Fatalf("discovery eligible = %v, %v", eligible, err)
+	}
+}
+
+func TestProcessInconclusiveStaysPending(t *testing.T) {
+	service, userID, _, fake := newPhotoTestService(t)
+	const originalKey = "photos/inconclusive"
+	fake.objects[originalKey] = photoTestJPEG(t, 20, 20)
+	photoID := insertPhotoRow(t, userID, originalKey, 1, photoModerationPending, 0)
+	moderation := &fakeModeration{verdict: moderationVerdict{status: photoModerationPending}}
+	service.moderate = moderation.moderate
+
+	response := processPhotoRequest(service, userID, photoID)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Status photoModerationStatus `json:"status"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Status != photoModerationPending {
+		t.Fatalf("body status = %q, want pending", body.Status)
+	}
+	var status photoModerationStatus
+	var reference sql.NullString
+	if err := testDB.QueryRow("SELECT moderation_status, provider_reference FROM photos WHERE id = $1", photoID).
+		Scan(&status, &reference); err != nil {
+		t.Fatal(err)
+	}
+	if status != photoModerationPending || reference.Valid {
+		t.Fatalf("row = %q %#v", status, reference)
+	}
+
+	response = processPhotoRequest(service, userID, photoID)
+	if response.Code != http.StatusOK {
+		t.Fatalf("repeat status = %d, body = %s", response.Code, response.Body.String())
+	}
+	if moderation.callCount() != 2 {
+		t.Fatalf("moderation calls = %d, want 2", moderation.callCount())
+	}
+	if count := countPhotos(t); count != 1 {
+		t.Fatalf("photo count = %d", count)
+	}
+}
+
+func TestProcessProviderFailureKeepsPending(t *testing.T) {
+	service, userID, _, fake := newPhotoTestService(t)
+	const originalKey = "photos/provider-failure"
+	fake.objects[originalKey] = photoTestJPEG(t, 20, 20)
+	photoID := insertPhotoRow(t, userID, originalKey, 1, photoModerationPending, 0)
+	moderation := &fakeModeration{err: errors.New("provider down")}
+	service.moderate = moderation.moderate
+
+	response := processPhotoRequest(service, userID, photoID)
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503", response.Code)
+	}
+	var status photoModerationStatus
+	if err := testDB.QueryRow("SELECT moderation_status FROM photos WHERE id = $1", photoID).Scan(&status); err != nil {
+		t.Fatal(err)
+	}
+	if status != photoModerationPending {
+		t.Fatalf("status = %q, want pending", status)
+	}
+	key := storedPhotoKey(t, photoID)
+	if key == originalKey {
+		t.Fatal("post-swap failure did not keep the sanitized object")
+	}
+	if _, ok := fake.objects[key]; !ok {
+		t.Fatal("sanitized object was deleted on a retryable failure")
+	}
+
+	moderation.err = nil
+	moderation.verdict = moderationVerdict{status: photoModerationApproved, reference: "op-retry"}
+	if response := processPhotoRequest(service, userID, photoID); response.Code != http.StatusOK {
+		t.Fatalf("retry status = %d, body = %s", response.Code, response.Body.String())
+	}
+}
+
+func TestProcessUnconfiguredModerationFailsClosed(t *testing.T) {
+	service, userID, _, fake := newPhotoTestService(t)
+	const key = "photos/no-moderation"
+	fake.objects[key] = photoTestJPEG(t, 20, 20)
+	photoID := insertPhotoRow(t, userID, key, 1, photoModerationPending, 0)
+	service.moderate = nil
+	var before time.Time
+	if err := testDB.QueryRow("SELECT updated_at FROM photos WHERE id = $1", photoID).Scan(&before); err != nil {
+		t.Fatal(err)
+	}
+
+	if response := processPhotoRequest(service, userID, photoID); response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503", response.Code)
+	}
+	if fake.getCalls != 0 {
+		t.Fatalf("storage get calls = %d, want 0", fake.getCalls)
+	}
+	var after time.Time
+	if err := testDB.QueryRow("SELECT updated_at FROM photos WHERE id = $1", photoID).Scan(&after); err != nil {
+		t.Fatal(err)
+	}
+	if !after.Equal(before) {
+		t.Fatal("fail-closed path claimed the row")
+	}
+}
+
+func TestProcessRejectsInvalidImageBeforeModeration(t *testing.T) {
+	service, userID, _, fake := newPhotoTestService(t)
+	const key = "photos/invalid"
+	fake.objects[key] = []byte("not an image")
+	photoID := insertPhotoRow(t, userID, key, 1, photoModerationPending, 0)
+	moderation := &fakeModeration{verdict: moderationVerdict{status: photoModerationApproved}}
+	service.moderate = moderation.moderate
+
+	if response := processPhotoRequest(service, userID, photoID); response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", response.Code)
+	}
+	if moderation.callCount() != 0 {
+		t.Fatalf("moderation calls = %d, want 0", moderation.callCount())
+	}
+	if count := countPhotos(t); count != 0 {
+		t.Fatalf("photo count = %d", count)
+	}
+}
+
+func TestProcessNonPendingIs409WithoutStorage(t *testing.T) {
+	service, userID, _, fake := newPhotoTestService(t)
+	const key = "photos/terminal"
+	fake.objects[key] = photoTestJPEG(t, 20, 20)
+	photoID := insertPhotoRow(t, userID, key, 1, photoModerationApproved, 0)
+	moderation := &fakeModeration{verdict: moderationVerdict{status: photoModerationApproved}}
+	service.moderate = moderation.moderate
+
+	if response := processPhotoRequest(service, userID, photoID); response.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409", response.Code)
+	}
+	if fake.getCalls != 0 {
+		t.Fatalf("storage get calls = %d", fake.getCalls)
+	}
+	if moderation.callCount() != 0 {
+		t.Fatalf("moderation calls = %d", moderation.callCount())
+	}
+}
+
+func TestModerationCasStaleKey(t *testing.T) {
+	_, userID, _, _ := newPhotoTestService(t)
+	photoID := insertPhotoRow(t, userID, "photos/cas", 1, photoModerationPending, 0)
+
+	applied, err := applyModeration(context.Background(), testDB, photoID, userID, "photos/stale", moderationVerdict{status: photoModerationApproved, reference: "op-stale"})
+	if err != nil {
+		t.Fatalf("apply stale key: %v", err)
+	}
+	if applied {
+		t.Fatal("stale key moderation was applied")
+	}
+	var status photoModerationStatus
+	if err := testDB.QueryRow("SELECT moderation_status FROM photos WHERE id = $1", photoID).Scan(&status); err != nil {
+		t.Fatal(err)
+	}
+	if status != photoModerationPending {
+		t.Fatalf("status = %q, want pending", status)
+	}
+
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := applyModeration(cancelled, testDB, photoID, userID, "photos/cas", moderationVerdict{status: photoModerationApproved}); err == nil {
+		t.Fatal("cancelled context did not surface a database error")
+	}
+}
+
+func TestModerationForcedRaceKeepsWinnerVerdict(t *testing.T) {
+	service, userID, _, fake := newPhotoTestService(t)
+	const originalKey = "photos/race-moderation"
+	fake.objects[originalKey] = photoTestJPEG(t, 20, 20)
+	photoID := insertPhotoRow(t, userID, originalKey, 1, photoModerationPending, 0)
+
+	firstInModeration := make(chan struct{})
+	releaseFirst := make(chan struct{})
+	var calls int32
+	service.moderate = func(_ context.Context, _ []byte) (moderationVerdict, error) {
+		if atomic.AddInt32(&calls, 1) == 1 {
+			close(firstInModeration)
+			<-releaseFirst
+			return moderationVerdict{status: photoModerationRejected, reference: "loser"}, nil
+		}
+		return moderationVerdict{status: photoModerationApproved, reference: "winner"}, nil
+	}
+
+	firstDone := make(chan int, 1)
+	go func() { firstDone <- processPhotoRequest(service, userID, photoID).Code }()
+	<-firstInModeration
+
+	secondDone := make(chan int, 1)
+	go func() { secondDone <- processPhotoRequest(service, userID, photoID).Code }()
+	secondCode := <-secondDone
+	close(releaseFirst)
+	firstCode := <-firstDone
+
+	if secondCode != http.StatusOK {
+		t.Fatalf("second process status = %d, want 200", secondCode)
+	}
+	if firstCode != http.StatusConflict {
+		t.Fatalf("first process status = %d, want 409", firstCode)
+	}
+	var status photoModerationStatus
+	var reference sql.NullString
+	if err := testDB.QueryRow("SELECT moderation_status, provider_reference FROM photos WHERE id = $1", photoID).
+		Scan(&status, &reference); err != nil {
+		t.Fatal(err)
+	}
+	if status != photoModerationApproved || reference.String != "winner" {
+		t.Fatalf("row = %q %q, want approved/winner", status, reference.String)
+	}
+	if fake.objectCount() != 1 {
+		t.Fatalf("stored object count = %d, want 1", fake.objectCount())
+	}
+}
+
+func TestModerationNeverLeaksImageOrSecrets(t *testing.T) {
+	service, userID, _, fake := newPhotoTestService(t)
+	const key = "photos/leak-moderation"
+	fake.objects[key] = photoTestJPEG(t, 20, 20)
+	photoID := insertPhotoRow(t, userID, key, 1, photoModerationPending, 0)
+	service.moderate = func(context.Context, []byte) (moderationVerdict, error) {
+		return moderationVerdict{}, errors.New("api_secret=secret-value key=" + key + " signature=signature-secret")
+	}
+
+	var logged bytes.Buffer
+	previous := log.Writer()
+	log.SetOutput(&logged)
+	defer log.SetOutput(previous)
+
+	response := processPhotoRequest(service, userID, photoID)
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503", response.Code)
+	}
+	for _, leaked := range []string{"secret-value", "signature-secret", key} {
+		if strings.Contains(response.Body.String(), leaked) {
+			t.Fatalf("response leaks %q: %s", leaked, response.Body.String())
+		}
+		if strings.Contains(logged.String(), leaked) {
+			t.Fatalf("log leaks %q: %s", leaked, logged.String())
+		}
+	}
+	jpegMagic := []byte{0xff, 0xd8, 0xff}
+	if bytes.Contains(response.Body.Bytes(), jpegMagic) || bytes.Contains(logged.Bytes(), jpegMagic) {
+		t.Fatal("image bytes leaked into the response or log")
+	}
+}
+
+func TestProcessRejectsAndDeletesObject(t *testing.T) {
+	service, userID, _, fake := newPhotoTestService(t)
+	const originalKey = "photos/rejected"
+	fake.objects[originalKey] = photoTestJPEG(t, 20, 20)
+	photoID := insertPhotoRow(t, userID, originalKey, 1, photoModerationPending, 0)
+	service.moderate = func(context.Context, []byte) (moderationVerdict, error) {
+		return moderationVerdict{status: photoModerationRejected, reference: "op-reject"}, nil
+	}
+
+	response := processPhotoRequest(service, userID, photoID)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Status photoModerationStatus `json:"status"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Status != photoModerationRejected {
+		t.Fatalf("body status = %q, want rejected", body.Status)
+	}
+	var status photoModerationStatus
+	var reference sql.NullString
+	if err := testDB.QueryRow("SELECT moderation_status, provider_reference FROM photos WHERE id = $1", photoID).
+		Scan(&status, &reference); err != nil {
+		t.Fatal(err)
+	}
+	if status != photoModerationRejected || reference.String != "op-reject" {
+		t.Fatalf("row = %q %q", status, reference.String)
+	}
+	if fake.objectCount() != 0 {
+		t.Fatalf("rejected object was kept: %d", fake.objectCount())
+	}
+	if response := getPhotoURLRequest(service, userID, photoID); response.Code != http.StatusNotFound {
+		t.Fatalf("rejected URL status = %d, want 404", response.Code)
+	}
+	if eligible, err := photoApprovedForDiscovery(context.Background(), testDB, userID); err != nil || eligible {
+		t.Fatalf("discovery eligible = %v, %v", eligible, err)
+	}
+	if response := uploadPhotoRequest(service, userID); response.Code != http.StatusCreated {
+		t.Fatalf("slot was not reusable, upload status = %d", response.Code)
+	}
+}
+
+func TestDiscoveryEligibilityRequiresApprovedPhoto(t *testing.T) {
+	_, userID, auth, _ := newPhotoTestService(t)
+	ctx := context.Background()
+	eligible, err := photoApprovedForDiscovery(ctx, testDB, userID)
+	if err != nil || eligible {
+		t.Fatalf("empty owner eligible = %v, %v", eligible, err)
+	}
+	insertPhotoRow(t, userID, "photos/pending-eligibility", 1, photoModerationPending, 0)
+	if eligible, err := photoApprovedForDiscovery(ctx, testDB, userID); err != nil || eligible {
+		t.Fatalf("pending owner eligible = %v, %v", eligible, err)
+	}
+	insertPhotoRow(t, userID, "photos/rejected-eligibility", 2, photoModerationRejected, 0)
+	if eligible, err := photoApprovedForDiscovery(ctx, testDB, userID); err != nil || eligible {
+		t.Fatalf("rejected owner eligible = %v, %v", eligible, err)
+	}
+	insertPhotoRow(t, userID, "photos/approved-eligibility", 3, photoModerationApproved, 0)
+	if eligible, err := photoApprovedForDiscovery(ctx, testDB, userID); err != nil || !eligible {
+		t.Fatalf("approved owner eligible = %v, %v", eligible, err)
+	}
+	otherID := insertTestUser(t, auth, "other-photos@example.com")
+	insertPhotoRow(t, otherID, "photos/other-approved", 1, photoModerationApproved, 0)
+	if eligible, err := photoApprovedForDiscovery(ctx, testDB, otherID); err != nil || !eligible {
+		t.Fatalf("other owner eligibility = %v, %v", eligible, err)
+	}
+}
+
+func TestUploadURLReclaimsRejectedSlot(t *testing.T) {
+	service, userID, _, _ := newPhotoTestService(t)
+	for order := 1; order <= 2; order++ {
+		insertPhotoRow(t, userID, "photos/approved-slot-"+string(rune('0'+order)), order, photoModerationApproved, 0)
+	}
+	insertPhotoRow(t, userID, "photos/rejected-slot", 3, photoModerationRejected, 0)
+
+	if response := uploadPhotoRequest(service, userID); response.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	if count := countPhotos(t); count != 3 {
+		t.Fatalf("photo count = %d, want 3", count)
+	}
+	var rejected int
+	if err := testDB.QueryRow("SELECT count(*) FROM photos WHERE moderation_status = 'rejected'").Scan(&rejected); err != nil {
+		t.Fatal(err)
+	}
+	if rejected != 0 {
+		t.Fatalf("rejected rows = %d, want 0", rejected)
+	}
+}
+
+func TestUploadURLReclaimsAllRejectedRows(t *testing.T) {
+	service, userID, _, _ := newPhotoTestService(t)
+	for order := 1; order <= 3; order++ {
+		insertPhotoRow(t, userID, "photos/rejected-all-"+string(rune('0'+order)), order, photoModerationRejected, 0)
+	}
+	if response := uploadPhotoRequest(service, userID); response.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	if count := countPhotos(t); count != 1 {
+		t.Fatalf("photo count = %d, want 1", count)
+	}
+	var order int
+	if err := testDB.QueryRow("SELECT display_order FROM photos").Scan(&order); err != nil {
+		t.Fatal(err)
+	}
+	if order != 1 {
+		t.Fatalf("display_order = %d, want 1", order)
+	}
+}
+
+func TestUploadURLKeepsApprovedRows(t *testing.T) {
+	service, userID, _, _ := newPhotoTestService(t)
+	for order := 1; order <= 3; order++ {
+		insertPhotoRow(t, userID, "photos/approved-keep-"+string(rune('0'+order)), order, photoModerationApproved, 0)
+	}
+	if response := uploadPhotoRequest(service, userID); response.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409", response.Code)
+	}
+	if count := countPhotos(t); count != 3 {
+		t.Fatalf("photo count = %d, want 3", count)
+	}
+}
+
+func TestPhotoURLIsOwnerOnlyShortLived(t *testing.T) {
+	service, userID, auth, fake := newPhotoTestService(t)
+	const pendingKey = "photos/url-pending"
+	pendingID := insertPhotoRow(t, userID, pendingKey, 1, photoModerationPending, 0)
+
+	response := getPhotoURLRequest(service, userID, pendingID)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	if response.Header().Get("Cache-Control") != "no-store" || response.Header().Get("Referrer-Policy") != "no-referrer" {
+		t.Fatalf("headers = %v", response.Header())
+	}
+	var body photoURLBody
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Status != photoModerationPending || body.ExpiresInSeconds != 300 || body.URL == "" {
+		t.Fatalf("body = %#v", body)
+	}
+	fake.mu.Lock()
+	presignedKey := fake.presignedGetKeys[0]
+	presignExpiry := fake.presignGetExpiries[0]
+	fake.mu.Unlock()
+	if presignedKey != pendingKey || presignExpiry != photoUploadURLExpiry {
+		t.Fatalf("presign = %q %v", presignedKey, presignExpiry)
+	}
+
+	otherID := insertTestUser(t, auth, "other-url@example.com")
+	foreign := getPhotoURLRequest(service, otherID, pendingID)
+	unknown := getPhotoURLRequest(service, userID, "00000000-0000-4000-8000-000000000000")
+	if foreign.Code != http.StatusNotFound || unknown.Code != http.StatusNotFound {
+		t.Fatalf("foreign %d unknown %d, want 404", foreign.Code, unknown.Code)
+	}
+	if foreign.Body.String() != unknown.Body.String() {
+		t.Fatal("foreign and unknown responses differ")
+	}
+
+	insertPhotoRow(t, userID, "photos/url-rejected", 2, photoModerationRejected, 0)
+	var rejectedID string
+	if err := testDB.QueryRow("SELECT id FROM photos WHERE object_key = 'photos/url-rejected'").Scan(&rejectedID); err != nil {
+		t.Fatal(err)
+	}
+	if response := getPhotoURLRequest(service, userID, rejectedID); response.Code != http.StatusNotFound {
+		t.Fatalf("rejected URL status = %d, want 404", response.Code)
+	}
+}
+
+func TestPhotoListIsOwnerOnly(t *testing.T) {
+	service, userID, auth, _ := newPhotoTestService(t)
+	insertPhotoRow(t, userID, "photos/list-1", 1, photoModerationPending, 0)
+	insertPhotoRow(t, userID, "photos/list-2", 2, photoModerationApproved, 0)
+	insertPhotoRow(t, userID, "photos/list-3", 3, photoModerationRejected, 0)
+	otherID := insertTestUser(t, auth, "other-list@example.com")
+	insertPhotoRow(t, otherID, "photos/other-list", 1, photoModerationApproved, 0)
+
+	response := getPhotoListRequest(service, userID)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	if response.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("Cache-Control = %q", response.Header().Get("Cache-Control"))
+	}
+	var body photoListBody
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Photos) != 3 {
+		t.Fatalf("photos = %d, want 3", len(body.Photos))
+	}
+	for index, item := range body.Photos {
+		if item.DisplayOrder != index+1 || item.PhotoID == "" || item.Status == "" {
+			t.Fatalf("item %d = %#v", index, item)
+		}
+	}
+	for _, forbidden := range []string{"url", "object_key", "photos/list"} {
+		if strings.Contains(response.Body.String(), forbidden) {
+			t.Fatalf("list leaks %q: %s", forbidden, response.Body.String())
+		}
+	}
+
+	var otherBody photoListBody
+	ownList := getPhotoListRequest(service, otherID)
+	if ownList.Code != http.StatusOK {
+		t.Fatalf("other list status = %d", ownList.Code)
+	}
+	if err := json.Unmarshal(ownList.Body.Bytes(), &otherBody); err != nil {
+		t.Fatal(err)
+	}
+	if len(otherBody.Photos) != 1 {
+		t.Fatalf("other owner's list = %d photos, want 1", len(otherBody.Photos))
+	}
+	thirdID := insertTestUser(t, auth, "third-list@example.com")
+	empty := getPhotoListRequest(service, thirdID)
+	if empty.Code != http.StatusOK || !strings.Contains(empty.Body.String(), `"photos":[]`) {
+		t.Fatalf("empty list = %d %s", empty.Code, empty.Body.String())
+	}
+}
+
+func TestProcessModerationTimeoutKeepsPending(t *testing.T) {
+	service, userID, _, fake := newPhotoTestService(t)
+	const key = "photos/moderation-timeout"
+	fake.objects[key] = photoTestJPEG(t, 20, 20)
+	photoID := insertPhotoRow(t, userID, key, 1, photoModerationPending, 0)
+	service.moderate = func(ctx context.Context, _ []byte) (moderationVerdict, error) {
+		<-ctx.Done()
+		return moderationVerdict{}, ctx.Err()
+	}
+
+	requestContext, cancel := context.WithTimeout(context.Background(), 700*time.Millisecond)
+	defer cancel()
+	response := processPhotoRequestContext(requestContext, service, userID, photoID, "")
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503", response.Code)
+	}
+	var status photoModerationStatus
+	var reference sql.NullString
+	if err := testDB.QueryRow("SELECT moderation_status, provider_reference FROM photos WHERE id = $1", photoID).
+		Scan(&status, &reference); err != nil {
+		t.Fatal(err)
+	}
+	if status != photoModerationPending || reference.Valid {
+		t.Fatalf("row = %q %#v", status, reference)
+	}
+	storedKey := storedPhotoKey(t, photoID)
+	if _, ok := fake.objects[storedKey]; !ok {
+		t.Fatal("timeout deleted the sanitized object")
 	}
 }

@@ -30,6 +30,8 @@ type config struct {
 	trustProxy         bool
 	s3Bucket           string
 	s3Region           string
+	sightengineUser    string
+	sightengineSecret  string
 }
 
 func loadConfig() (config, error) {
@@ -61,6 +63,13 @@ func loadConfig() (config, error) {
 		cfg.s3Bucket = bucket
 		cfg.s3Region = region
 	}
+	moderationUser := os.Getenv("SIGHTENGINE_API_USER")
+	moderationSecret := os.Getenv("SIGHTENGINE_API_SECRET")
+	if (moderationUser == "") != (moderationSecret == "") {
+		return config{}, errors.New("SIGHTENGINE_API_USER and SIGHTENGINE_API_SECRET must be set together")
+	}
+	cfg.sightengineUser = moderationUser
+	cfg.sightengineSecret = moderationSecret
 	return cfg, nil
 }
 
@@ -79,10 +88,10 @@ func healthHandler(ping func(context.Context) error) http.HandlerFunc {
 	}
 }
 
-func newMux(auth *authService, photoStore photoStorage, ping func(context.Context) error) *http.ServeMux {
+func newMux(auth *authService, photoStore photoStorage, moderate moderationFunc, ping func(context.Context) error) *http.ServeMux {
 	mux := http.NewServeMux()
 	profiles := &profileService{db: auth.db, appBaseURL: auth.appBaseURL}
-	photos := &photoService{db: auth.db, appBaseURL: auth.appBaseURL, storage: photoStore}
+	photos := &photoService{db: auth.db, appBaseURL: auth.appBaseURL, storage: photoStore, moderate: moderate}
 	mux.Handle("GET /healthz", healthHandler(ping))
 	mux.Handle("POST /api/v1/auth/link", http.HandlerFunc(auth.requestLink))
 	mux.Handle("GET /auth/verify", http.HandlerFunc(auth.confirmLink))
@@ -94,6 +103,8 @@ func newMux(auth *authService, photoStore photoStorage, ping func(context.Contex
 	mux.Handle("PUT /api/v1/profile", auth.requireUser(profiles.put))
 	mux.Handle("POST /api/v1/photos/upload-url", auth.requireUser(photos.uploadURL))
 	mux.Handle("POST /api/v1/photos/{id}/process", auth.requireUser(photos.process))
+	mux.Handle("GET /api/v1/photos", auth.requireUser(photos.photoList))
+	mux.Handle("GET /api/v1/photos/{id}/url", auth.requireUser(photos.photoURL))
 	return mux
 }
 
@@ -128,6 +139,16 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	var moderate moderationFunc
+	if cfg.sightengineUser != "" {
+		client := sightengineClient{
+			apiUser:   cfg.sightengineUser,
+			apiSecret: cfg.sightengineSecret,
+			endpoint:  sightengineEndpoint,
+			client:    newSightengineHTTPClient(),
+		}
+		moderate = client.moderate
+	}
 
 	mailer := resendMailer{
 		apiKey:   cfg.resendAPIKey,
@@ -146,7 +167,7 @@ func run() error {
 	}
 	server := &http.Server{
 		Addr:              cfg.address,
-		Handler:           newMux(auth, photoStore, db.PingContext),
+		Handler:           newMux(auth, photoStore, moderate, db.PingContext),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      10 * time.Second,

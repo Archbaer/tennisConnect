@@ -209,6 +209,7 @@ type photoService struct {
 	db         *sql.DB
 	appBaseURL string
 	storage    photoStorage
+	moderate   moderationFunc
 }
 
 var (
@@ -295,6 +296,10 @@ func (s *photoService) process(w http.ResponseWriter, r *http.Request, userID st
 		writeError(w, http.StatusServiceUnavailable, "photo uploads unavailable")
 		return
 	}
+	if s.moderate == nil {
+		writeError(w, http.StatusServiceUnavailable, "photo checks unavailable")
+		return
+	}
 	photoID := r.PathValue("id")
 	if !validPhotoID(photoID) {
 		writeError(w, http.StatusNotFound, "photo not found")
@@ -321,39 +326,23 @@ func (s *photoService) process(w http.ResponseWriter, r *http.Request, userID st
 		writeError(w, http.StatusServiceUnavailable, "temporarily unavailable")
 		return
 	}
+	var sanitized []byte
 	if getErr == nil {
-		validated, validErr := validateImage(data, http.DetectContentType(data))
-		if validErr == nil {
-			s.replacePhotoObject(ctx, w, photoID, userID, originalKey, validated.data)
-			return
+		if validated, validErr := validateImage(data, http.DetectContentType(data)); validErr == nil {
+			sanitized = validated.data
 		}
 	}
-
-	// Missing, oversized, or undecodable bytes: free the slot unless another
-	// request already replaced this row's object.
-	deleted, deleteErr := deletePhotoRowCAS(ctx, s.db, photoID, userID, originalKey)
-	if deleteErr != nil {
-		writeError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+	if sanitized == nil {
+		s.discardInvalidPhoto(ctx, w, photoID, userID, originalKey)
 		return
 	}
-	if !deleted {
-		writeError(w, http.StatusConflict, "photo already processed")
-		return
-	}
-	s.deleteObjectBestEffort(ctx, originalKey)
-	writeError(w, http.StatusBadRequest, "invalid photo")
-}
 
-// replacePhotoObject stores the sanitized JPEG under a fresh key and swaps the
-// row with a compare-and-swap, so a replayed upload URL can never overwrite the
-// validated object.
-func (s *photoService) replacePhotoObject(ctx context.Context, w http.ResponseWriter, photoID, userID, originalKey string, data []byte) {
 	newKey, err := newPhotoObjectKey()
 	if err != nil {
 		writeError(w, http.StatusServiceUnavailable, "temporarily unavailable")
 		return
 	}
-	if err := s.storage.put(ctx, newKey, data); err != nil {
+	if err := s.storage.put(ctx, newKey, sanitized); err != nil {
 		writeError(w, http.StatusServiceUnavailable, "temporarily unavailable")
 		return
 	}
@@ -369,7 +358,162 @@ func (s *photoService) replacePhotoObject(ctx context.Context, w http.ResponseWr
 		return
 	}
 	s.deleteObjectBestEffort(ctx, originalKey)
-	writeJSON(w, http.StatusOK, photoProcessResponse{PhotoID: photoID, Status: photoModerationPending})
+
+	moderationCtx, stopModeration := context.WithTimeout(ctx, photoModerationTimeout)
+	verdict, moderationErr := s.moderate(moderationCtx, sanitized)
+	stopModeration()
+	if moderationErr != nil {
+		// The sanitized object stays addressable so the owner can retry.
+		writeError(w, http.StatusServiceUnavailable, "photo checks unavailable")
+		return
+	}
+	if verdict.status == photoModerationPending {
+		writeJSON(w, http.StatusOK, photoProcessResponse{PhotoID: photoID, Status: photoModerationPending})
+		return
+	}
+	applied, applyErr := applyModeration(ctx, s.db, photoID, userID, newKey, verdict)
+	if applyErr != nil {
+		writeError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+		return
+	}
+	if !applied {
+		s.deleteObjectBestEffort(ctx, newKey)
+		writeError(w, http.StatusConflict, "photo already processed")
+		return
+	}
+	if verdict.status == photoModerationRejected {
+		s.deleteObjectBestEffort(ctx, newKey)
+	}
+	writeJSON(w, http.StatusOK, photoProcessResponse{PhotoID: photoID, Status: verdict.status})
+}
+
+func (s *photoService) discardInvalidPhoto(ctx context.Context, w http.ResponseWriter, photoID, userID, objectKey string) {
+	deleted, err := deletePhotoRowCAS(ctx, s.db, photoID, userID, objectKey)
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+		return
+	}
+	if !deleted {
+		writeError(w, http.StatusConflict, "photo already processed")
+		return
+	}
+	s.deleteObjectBestEffort(ctx, objectKey)
+	writeError(w, http.StatusBadRequest, "invalid photo")
+}
+
+func applyModeration(ctx context.Context, db *sql.DB, photoID, ownerID, objectKey string, verdict moderationVerdict) (bool, error) {
+	var reference sql.NullString
+	if verdict.reference != "" {
+		reference = sql.NullString{String: verdict.reference, Valid: true}
+	}
+	result, err := db.ExecContext(ctx, `
+		UPDATE photos SET moderation_status = $1, provider_reference = $2, updated_at = now()
+		WHERE id = $3 AND owner_id = $4 AND object_key = $5 AND moderation_status = 'pending'`,
+		string(verdict.status), reference, photoID, ownerID, objectKey)
+	if err != nil {
+		return false, err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return affected == 1, nil
+}
+
+func photoApprovedForDiscovery(ctx context.Context, db *sql.DB, ownerID string) (bool, error) {
+	var approved bool
+	err := db.QueryRowContext(ctx, `
+		SELECT EXISTS (SELECT 1 FROM photos WHERE owner_id = $1 AND moderation_status = 'approved')`,
+		ownerID).Scan(&approved)
+	return approved, err
+}
+
+type photoURLResponse struct {
+	PhotoID          string                `json:"photo_id"`
+	Status           photoModerationStatus `json:"status"`
+	URL              string                `json:"url"`
+	ExpiresInSeconds int                   `json:"expires_in_seconds"`
+}
+
+type photoListItem struct {
+	PhotoID      string                `json:"photo_id"`
+	DisplayOrder int                   `json:"display_order"`
+	Status       photoModerationStatus `json:"status"`
+}
+
+type photoListResponse struct {
+	Photos []photoListItem `json:"photos"`
+}
+
+func (s *photoService) photoURL(w http.ResponseWriter, r *http.Request, userID string) {
+	preventAuthCaching(w)
+	if !s.storage.configured() {
+		writeError(w, http.StatusServiceUnavailable, "photo uploads unavailable")
+		return
+	}
+	photoID := r.PathValue("id")
+	if !validPhotoID(photoID) {
+		writeError(w, http.StatusNotFound, "photo not found")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+	var status photoModerationStatus
+	var objectKey string
+	err := s.db.QueryRowContext(ctx, `
+		SELECT moderation_status, object_key FROM photos WHERE id = $1 AND owner_id = $2`, photoID, userID).
+		Scan(&status, &objectKey)
+	if errors.Is(err, sql.ErrNoRows) {
+		writeError(w, http.StatusNotFound, "photo not found")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+		return
+	}
+	if status != photoModerationPending && status != photoModerationApproved {
+		writeError(w, http.StatusNotFound, "photo not found")
+		return
+	}
+	ownerURL, err := s.storage.presignGet(ctx, objectKey, photoUploadURLExpiry)
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+		return
+	}
+	writeJSON(w, http.StatusOK, photoURLResponse{
+		PhotoID:          photoID,
+		Status:           status,
+		URL:              ownerURL,
+		ExpiresInSeconds: int(photoUploadURLExpiry.Seconds()),
+	})
+}
+
+func (s *photoService) photoList(w http.ResponseWriter, r *http.Request, userID string) {
+	preventAuthCaching(w)
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, display_order, moderation_status FROM photos
+		WHERE owner_id = $1 ORDER BY display_order`, userID)
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+		return
+	}
+	defer rows.Close()
+	items := []photoListItem{}
+	for rows.Next() {
+		var item photoListItem
+		if err := rows.Scan(&item.PhotoID, &item.DisplayOrder, &item.Status); err != nil {
+			writeError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+			return
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		writeError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+		return
+	}
+	writeJSON(w, http.StatusOK, photoListResponse{Photos: items})
 }
 
 func (s *photoService) insertPendingPhoto(ctx context.Context, ownerID string) (photoRecord, error) {
@@ -392,11 +536,18 @@ func (s *photoService) insertPendingPhoto(ctx context.Context, ownerID string) (
 			if cleanupErr != nil {
 				return photoRecord{}, cleanupErr
 			}
-			if len(staleKeys) == 0 {
-				return photoRecord{}, errPhotoLimit
-			}
 			for _, staleKey := range staleKeys {
 				s.deleteObjectBestEffort(ctx, staleKey)
+			}
+			if len(staleKeys) > 0 {
+				continue
+			}
+			removed, rejectedErr := deleteRejectedPhotos(ctx, s.db, ownerID)
+			if rejectedErr != nil {
+				return photoRecord{}, rejectedErr
+			}
+			if removed == 0 {
+				return photoRecord{}, errPhotoLimit
 			}
 			continue
 		}
@@ -461,6 +612,15 @@ func cleanupStalePending(ctx context.Context, db *sql.DB, ownerID string) ([]str
 		keys = append(keys, key)
 	}
 	return keys, rows.Err()
+}
+
+func deleteRejectedPhotos(ctx context.Context, db *sql.DB, ownerID string) (int, error) {
+	result, err := db.ExecContext(ctx, `DELETE FROM photos WHERE owner_id = $1 AND moderation_status = 'rejected'`, ownerID)
+	if err != nil {
+		return 0, err
+	}
+	affected, err := result.RowsAffected()
+	return int(affected), err
 }
 
 func claimPendingPhoto(ctx context.Context, db *sql.DB, photoID, ownerID string) (string, error) {

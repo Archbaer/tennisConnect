@@ -29,13 +29,14 @@ var (
 // AWS credentials or network access, matching the sendMagicLink pattern.
 type photoStorage struct {
 	presignPut func(context.Context, string, time.Duration) (string, error)
+	presignGet func(context.Context, string, time.Duration) (string, error)
 	get        func(context.Context, string) ([]byte, error)
 	put        func(context.Context, string, []byte) error
 	delete     func(context.Context, string) error
 }
 
 func (s photoStorage) configured() bool {
-	return s.presignPut != nil && s.get != nil && s.put != nil && s.delete != nil
+	return s.presignPut != nil && s.presignGet != nil && s.get != nil && s.put != nil && s.delete != nil
 }
 
 func newPhotoObjectKey() (string, error) {
@@ -75,6 +76,16 @@ func s3PhotoStorage(client *s3.Client, bucket string) photoStorage {
 	return photoStorage{
 		presignPut: func(ctx context.Context, key string, expires time.Duration) (string, error) {
 			request, err := presigner.PresignPutObject(ctx, &s3.PutObjectInput{
+				Bucket: aws.String(bucket),
+				Key:    aws.String(key),
+			}, s3.WithPresignExpires(expires))
+			if err != nil {
+				return "", err
+			}
+			return request.URL, nil
+		},
+		presignGet: func(ctx context.Context, key string, expires time.Duration) (string, error) {
+			request, err := presigner.PresignGetObject(ctx, &s3.GetObjectInput{
 				Bucket: aws.String(bucket),
 				Key:    aws.String(key),
 			}, s3.WithPresignExpires(expires))

@@ -76,3 +76,32 @@ func TestS3PresignURLIsShortLivedAndScoped(t *testing.T) {
 		}
 	}
 }
+
+func TestS3PresignGetIsShortLivedAndScoped(t *testing.T) {
+	client := s3.New(s3.Options{
+		Region:       "eu-west-2",
+		Credentials:  credentials.NewStaticCredentialsProvider("AKIAEXAMPLE", "secret", ""),
+		UsePathStyle: true,
+	})
+	storage := s3PhotoStorage(client, "private-bucket")
+	rawURL, err := storage.presignGet(context.Background(), "photos/example-key", photoUploadURLExpiry)
+	if err != nil {
+		t.Fatalf("presignGet: %v", err)
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		t.Fatalf("parse presigned URL: %v", err)
+	}
+	if parsed.Host != "s3.eu-west-2.amazonaws.com" || parsed.Path != "/private-bucket/photos/example-key" {
+		t.Fatalf("presigned URL = %q", rawURL)
+	}
+	if got := parsed.Query().Get("X-Amz-Expires"); got != "300" {
+		t.Fatalf("X-Amz-Expires = %q, want 300", got)
+	}
+	lower := strings.ToLower(rawURL)
+	for _, forbidden := range []string{"x-amz-acl", "public-read"} {
+		if strings.Contains(lower, forbidden) {
+			t.Fatalf("presigned URL contains %q", forbidden)
+		}
+	}
+}
