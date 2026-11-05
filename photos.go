@@ -2,14 +2,18 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/binary"
 	"errors"
 	"image"
 	"image/jpeg"
 	_ "image/png"
+	"log"
+	"net/http"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	xdraw "golang.org/x/image/draw"
 	_ "golang.org/x/image/webp"
 )
@@ -199,4 +203,324 @@ func applyPhotoOrientation(source image.Image, orientation int) image.Image {
 		}
 	}
 	return output
+}
+
+type photoService struct {
+	db         *sql.DB
+	appBaseURL string
+	storage    photoStorage
+}
+
+var (
+	errPhotoLimit         = errors.New("photo limit reached")
+	errPhotoNotFound      = errors.New("photo not found")
+	errPhotoNotPending    = errors.New("photo is not pending")
+	errPhotoUploadExpired = errors.New("photo upload expired")
+)
+
+type photoUploadResponse struct {
+	PhotoID          string `json:"photo_id"`
+	UploadURL        string `json:"upload_url"`
+	ExpiresInSeconds int    `json:"expires_in_seconds"`
+}
+
+type photoProcessResponse struct {
+	PhotoID string                `json:"photo_id"`
+	Status  photoModerationStatus `json:"status"`
+}
+
+func validPhotoID(id string) bool {
+	if len(id) != 36 {
+		return false
+	}
+	for index, character := range id {
+		if index == 8 || index == 13 || index == 18 || index == 23 {
+			if character != '-' {
+				return false
+			}
+			continue
+		}
+		hex := (character >= '0' && character <= '9') ||
+			(character >= 'a' && character <= 'f') ||
+			(character >= 'A' && character <= 'F')
+		if !hex {
+			return false
+		}
+	}
+	return true
+}
+
+func (s *photoService) uploadURL(w http.ResponseWriter, r *http.Request, userID string) {
+	preventAuthCaching(w)
+	if !requestOriginAllowed(r, s.appBaseURL) {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	if !s.storage.configured() {
+		writeError(w, http.StatusServiceUnavailable, "photo uploads unavailable")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	record, err := s.insertPendingPhoto(ctx, userID)
+	if err != nil {
+		if errors.Is(err, errPhotoLimit) {
+			writeError(w, http.StatusConflict, "photo limit reached")
+			return
+		}
+		writeError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+		return
+	}
+	uploadURL, err := s.storage.presignPut(ctx, record.ObjectKey, photoUploadURLExpiry)
+	if err != nil {
+		s.deletePhotoRowBestEffort(ctx, record.ID, userID, record.ObjectKey)
+		writeError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+		return
+	}
+	writeJSON(w, http.StatusCreated, photoUploadResponse{
+		PhotoID:          record.ID,
+		UploadURL:        uploadURL,
+		ExpiresInSeconds: int(photoUploadURLExpiry.Seconds()),
+	})
+}
+
+func (s *photoService) process(w http.ResponseWriter, r *http.Request, userID string) {
+	preventAuthCaching(w)
+	if !requestOriginAllowed(r, s.appBaseURL) {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	if !s.storage.configured() {
+		writeError(w, http.StatusServiceUnavailable, "photo uploads unavailable")
+		return
+	}
+	photoID := r.PathValue("id")
+	if !validPhotoID(photoID) {
+		writeError(w, http.StatusNotFound, "photo not found")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
+	defer cancel()
+
+	originalKey, err := claimPendingPhoto(ctx, s.db, photoID, userID)
+	if err != nil {
+		switch {
+		case errors.Is(err, errPhotoNotFound):
+			writeError(w, http.StatusNotFound, "photo not found")
+		case errors.Is(err, errPhotoNotPending), errors.Is(err, errPhotoUploadExpired):
+			writeError(w, http.StatusConflict, "photo cannot be processed")
+		default:
+			writeError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+		}
+		return
+	}
+
+	data, getErr := s.storage.get(ctx, originalKey)
+	if getErr != nil && !errors.Is(getErr, errPhotoObjectMissing) && !errors.Is(getErr, errPhotoObjectTooLarge) {
+		writeError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+		return
+	}
+	if getErr == nil {
+		validated, validErr := validateImage(data, http.DetectContentType(data))
+		if validErr == nil {
+			s.replacePhotoObject(ctx, w, photoID, userID, originalKey, validated.data)
+			return
+		}
+	}
+
+	// Missing, oversized, or undecodable bytes: free the slot unless another
+	// request already replaced this row's object.
+	deleted, deleteErr := deletePhotoRowCAS(ctx, s.db, photoID, userID, originalKey)
+	if deleteErr != nil {
+		writeError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+		return
+	}
+	if !deleted {
+		writeError(w, http.StatusConflict, "photo already processed")
+		return
+	}
+	s.deleteObjectBestEffort(ctx, originalKey)
+	writeError(w, http.StatusBadRequest, "invalid photo")
+}
+
+// replacePhotoObject stores the sanitized JPEG under a fresh key and swaps the
+// row with a compare-and-swap, so a replayed upload URL can never overwrite the
+// validated object.
+func (s *photoService) replacePhotoObject(ctx context.Context, w http.ResponseWriter, photoID, userID, originalKey string, data []byte) {
+	newKey, err := newPhotoObjectKey()
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+		return
+	}
+	if err := s.storage.put(ctx, newKey, data); err != nil {
+		writeError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+		return
+	}
+	swapped, err := swapPhotoObjectKey(ctx, s.db, photoID, userID, originalKey, newKey)
+	if err != nil {
+		s.deleteObjectBestEffort(ctx, newKey)
+		writeError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+		return
+	}
+	if !swapped {
+		s.deleteObjectBestEffort(ctx, newKey)
+		writeError(w, http.StatusConflict, "photo already processed")
+		return
+	}
+	s.deleteObjectBestEffort(ctx, originalKey)
+	writeJSON(w, http.StatusOK, photoProcessResponse{PhotoID: photoID, Status: photoModerationPending})
+}
+
+func (s *photoService) insertPendingPhoto(ctx context.Context, ownerID string) (photoRecord, error) {
+	cleaned := false
+	for attempt := 0; attempt < photoUploadAttempts; attempt++ {
+		key, err := newPhotoObjectKey()
+		if err != nil {
+			return photoRecord{}, err
+		}
+		record, err := insertPhotoWithKey(ctx, s.db, ownerID, key)
+		if err == nil {
+			return record, nil
+		}
+		if errors.Is(err, errPhotoLimit) {
+			if cleaned {
+				return photoRecord{}, errPhotoLimit
+			}
+			cleaned = true
+			staleKeys, cleanupErr := cleanupStalePending(ctx, s.db, ownerID)
+			if cleanupErr != nil {
+				return photoRecord{}, cleanupErr
+			}
+			if len(staleKeys) == 0 {
+				return photoRecord{}, errPhotoLimit
+			}
+			for _, staleKey := range staleKeys {
+				s.deleteObjectBestEffort(ctx, staleKey)
+			}
+			continue
+		}
+		var databaseError *pgconn.PgError
+		if errors.As(err, &databaseError) && databaseError.Code == "23505" {
+			continue
+		}
+		return photoRecord{}, err
+	}
+	return photoRecord{}, errPhotoLimit
+}
+
+func (s *photoService) deleteObjectBestEffort(ctx context.Context, key string) {
+	if err := s.storage.delete(ctx, key); err != nil {
+		log.Print("photo storage cleanup failed")
+	}
+}
+
+func (s *photoService) deletePhotoRowBestEffort(ctx context.Context, photoID, ownerID, objectKey string) {
+	if _, err := deletePhotoRowCAS(ctx, s.db, photoID, ownerID, objectKey); err != nil {
+		log.Print("photo row cleanup failed")
+	}
+}
+
+func insertPhotoWithKey(ctx context.Context, db *sql.DB, ownerID, objectKey string) (photoRecord, error) {
+	var record photoRecord
+	err := db.QueryRowContext(ctx, `
+		INSERT INTO photos (owner_id, object_key, display_order)
+		SELECT $1::uuid, $2, slot
+		FROM generate_series(1, 3) AS slot
+		WHERE NOT EXISTS (
+			SELECT 1 FROM photos WHERE owner_id = $1::uuid AND display_order = slot
+		)
+		ORDER BY slot
+		LIMIT 1
+		RETURNING id, owner_id, object_key, display_order, moderation_status,
+			provider_reference, created_at, updated_at`, ownerID, objectKey).Scan(
+		&record.ID, &record.OwnerID, &record.ObjectKey, &record.DisplayOrder,
+		&record.ModerationStatus, &record.ProviderReference, &record.CreatedAt, &record.UpdatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return photoRecord{}, errPhotoLimit
+	}
+	return record, err
+}
+
+func cleanupStalePending(ctx context.Context, db *sql.DB, ownerID string) ([]string, error) {
+	rows, err := db.QueryContext(ctx, `
+		DELETE FROM photos
+		WHERE owner_id = $1 AND moderation_status = 'pending'
+			AND updated_at < now() - make_interval(secs => $2)
+		RETURNING object_key`, ownerID, photoStaleAfter.Seconds())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var keys []string
+	for rows.Next() {
+		var key string
+		if err := rows.Scan(&key); err != nil {
+			return nil, err
+		}
+		keys = append(keys, key)
+	}
+	return keys, rows.Err()
+}
+
+func claimPendingPhoto(ctx context.Context, db *sql.DB, photoID, ownerID string) (string, error) {
+	var key string
+	err := db.QueryRowContext(ctx, `
+		UPDATE photos SET updated_at = now()
+		WHERE id = $1 AND owner_id = $2 AND moderation_status = 'pending'
+			AND updated_at > now() - make_interval(secs => $3)
+		RETURNING object_key`, photoID, ownerID, photoStaleAfter.Seconds()).Scan(&key)
+	if err == nil {
+		return key, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		var databaseError *pgconn.PgError
+		if errors.As(err, &databaseError) && databaseError.Code == "22P02" {
+			return "", errPhotoNotFound
+		}
+		return "", err
+	}
+
+	var status photoModerationStatus
+	var updatedAt time.Time
+	err = db.QueryRowContext(ctx, `
+		SELECT moderation_status, updated_at FROM photos WHERE id = $1 AND owner_id = $2`, photoID, ownerID).
+		Scan(&status, &updatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", errPhotoNotFound
+	}
+	if err != nil {
+		return "", err
+	}
+	if status != photoModerationPending {
+		return "", errPhotoNotPending
+	}
+	return "", errPhotoUploadExpired
+}
+
+func swapPhotoObjectKey(ctx context.Context, db *sql.DB, photoID, ownerID, originalKey, newKey string) (bool, error) {
+	result, err := db.ExecContext(ctx, `
+		UPDATE photos SET object_key = $1, updated_at = now()
+		WHERE id = $2 AND owner_id = $3 AND object_key = $4 AND moderation_status = 'pending'`,
+		newKey, photoID, ownerID, originalKey)
+	if err != nil {
+		return false, err
+	}
+	affected, err := result.RowsAffected()
+	return affected == 1, err
+}
+
+func deletePhotoRowCAS(ctx context.Context, db *sql.DB, photoID, ownerID, objectKey string) (bool, error) {
+	result, err := db.ExecContext(ctx, `
+		DELETE FROM photos WHERE id = $1 AND owner_id = $2 AND object_key = $3`,
+		photoID, ownerID, objectKey)
+	if err != nil {
+		var databaseError *pgconn.PgError
+		if errors.As(err, &databaseError) && databaseError.Code == "22P02" {
+			return false, nil
+		}
+		return false, err
+	}
+	affected, err := result.RowsAffected()
+	return affected == 1, err
 }
