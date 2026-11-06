@@ -20,6 +20,7 @@ func setValidConfigEnv(t *testing.T) {
 	t.Setenv("AWS_REGION", "")
 	t.Setenv("SIGHTENGINE_API_USER", "")
 	t.Setenv("SIGHTENGINE_API_SECRET", "")
+	t.Setenv("MAPBOX_ACCESS_TOKEN", "")
 }
 
 func bytesOf(value byte, count int) []byte {
@@ -184,5 +185,25 @@ func TestLoadConfigModerationIsBothOrNeither(t *testing.T) {
 	}
 	if cfg.SightengineUser != "user" || cfg.SightengineSecret != "secret" {
 		t.Fatalf("moderation config = %q / %q", cfg.SightengineUser, cfg.SightengineSecret)
+	}
+}
+
+func TestLoadConfigMapboxTokenIsOptional(t *testing.T) {
+	setValidConfigEnv(t)
+	got, err := Load()
+	if err != nil {
+		t.Fatalf("Load() without a token: %v", err)
+	}
+	if got.MapboxAccessToken != "" {
+		t.Fatalf("MapboxAccessToken = %q, want empty", got.MapboxAccessToken)
+	}
+
+	t.Setenv("MAPBOX_ACCESS_TOKEN", "  pk.test-token  ")
+	got, err = Load()
+	if err != nil {
+		t.Fatalf("Load() with a token: %v", err)
+	}
+	if got.MapboxAccessToken != "pk.test-token" {
+		t.Fatalf("MapboxAccessToken = %q", got.MapboxAccessToken)
 	}
 }

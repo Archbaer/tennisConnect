@@ -25,6 +25,7 @@ type Config struct {
 	S3Region           string
 	SightengineUser    string
 	SightengineSecret  string
+	MapboxAccessToken  string
 }
 
 func Load() (Config, error) {
@@ -63,6 +64,7 @@ func Load() (Config, error) {
 	}
 	cfg.SightengineUser = moderationUser
 	cfg.SightengineSecret = moderationSecret
+	cfg.MapboxAccessToken = strings.TrimSpace(os.Getenv("MAPBOX_ACCESS_TOKEN"))
 	return cfg, nil
 }
 
