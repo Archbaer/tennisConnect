@@ -3,17 +3,22 @@ package app
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"tennisconnect/internal/auth"
+	"tennisconnect/internal/discovery"
+	"tennisconnect/internal/location"
 	"tennisconnect/internal/photos"
 	"tennisconnect/internal/testutil"
 )
 
-func newTestServices(t *testing.T) (*auth.Service, *photos.Service) {
+func newTestServices(t *testing.T) (*auth.Service, *photos.Service, *location.Service, *discovery.Service) {
 	t.Helper()
 	testutil.ResetTables(t)
 	authSvc := &auth.Service{
@@ -23,12 +28,34 @@ func newTestServices(t *testing.T) (*auth.Service, *photos.Service) {
 		EmailHMACKey:       bytes.Repeat([]byte{2}, 32),
 		SendMagicLink:      func(context.Context, string, string) error { return nil },
 	}
-	return authSvc, &photos.Service{DB: testutil.DB, AppBaseURL: "http://localhost:8080"}
+	return authSvc,
+		&photos.Service{DB: testutil.DB, AppBaseURL: "http://localhost:8080"},
+		&location.Service{DB: testutil.DB, AppBaseURL: "http://localhost:8080"},
+		&discovery.Service{DB: testutil.DB}
+}
+
+func insertTestSession(t *testing.T, userID string) *http.Cookie {
+	t.Helper()
+	sum := sha256.Sum256([]byte(fmt.Sprintf("test-session-%s", userID)))
+	token := base64.RawURLEncoding.EncodeToString(sum[:])
+	hash := sha256.Sum256([]byte(token))
+	if _, err := testutil.DB.Exec("INSERT INTO sessions (token_hash, user_id, expires_at) VALUES ($1, $2, now() + interval '1 hour')", hash[:], userID); err != nil {
+		t.Fatalf("insert test session: %v", err)
+	}
+	return &http.Cookie{Name: "tennisconnect_session", Value: token}
+}
+
+func authenticatedRequest(t *testing.T, method, path, body string, cookie *http.Cookie) *http.Request {
+	t.Helper()
+	request := httptest.NewRequest(method, path, strings.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
+	request.AddCookie(cookie)
+	return request
 }
 
 func TestMuxRoutesAuthEndpoints(t *testing.T) {
-	authSvc, photoSvc := newTestServices(t)
-	handler := NewMux(authSvc, photoSvc, testutil.DB.PingContext)
+	authSvc, photoSvc, locationSvc, discoverySvc := newTestServices(t)
+	handler := NewMux(authSvc, photoSvc, locationSvc, discoverySvc, testutil.DB.PingContext)
 	tests := []struct {
 		name        string
 		method      string
@@ -69,7 +96,7 @@ func TestMuxRoutesAuthEndpoints(t *testing.T) {
 
 func TestNoPublicRouteServesPhotoObjects(t *testing.T) {
 	authSvc := &auth.Service{DB: testutil.DB, AppBaseURL: "http://localhost:8080"}
-	handler := NewMux(authSvc, &photos.Service{DB: testutil.DB}, func(context.Context) error { return nil })
+	handler := NewMux(authSvc, &photos.Service{DB: testutil.DB}, &location.Service{DB: testutil.DB}, &discovery.Service{DB: testutil.DB}, func(context.Context) error { return nil })
 	for _, path := range []string{"/api/v1/photos/00000000-0000-4000-8000-000000000000", "/api/v1/photos/00000000-0000-4000-8000-000000000000/process"} {
 		request := httptest.NewRequest(http.MethodGet, path, nil)
 		response := httptest.NewRecorder()
@@ -80,5 +107,84 @@ func TestNoPublicRouteServesPhotoObjects(t *testing.T) {
 		if response.Body.Len() > 0 && bytes.HasPrefix(response.Body.Bytes(), []byte{0xff, 0xd8}) {
 			t.Fatalf("GET %s served image bytes", path)
 		}
+	}
+}
+
+func TestLocationRoutesRequireSession(t *testing.T) {
+	authSvc, photoSvc, locationSvc, discoverySvc := newTestServices(t)
+	handler := NewMux(authSvc, photoSvc, locationSvc, discoverySvc, testutil.DB.PingContext)
+	userID := testutil.InsertUser(t, "routes@example.com")
+	cookie := insertTestSession(t, userID)
+
+	for _, test := range []struct {
+		name string
+		path string
+	}{
+		{name: "put location", path: "/api/v1/location"},
+		{name: "get location", path: "/api/v1/location"},
+		{name: "put travel", path: "/api/v1/location/travel"},
+		{name: "delete travel", path: "/api/v1/location/travel"},
+		{name: "discovery", path: "/api/v1/discovery"},
+	} {
+		t.Run("unauthenticated "+test.name, func(t *testing.T) {
+			method := http.MethodGet
+			if strings.HasPrefix(test.name, "put") {
+				method = http.MethodPut
+			}
+			if strings.HasPrefix(test.name, "delete") {
+				method = http.MethodDelete
+			}
+			request := httptest.NewRequest(method, test.path, strings.NewReader(`{}`))
+			request.Header.Set("Content-Type", "application/json")
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			if response.Code != http.StatusUnauthorized {
+				t.Fatalf("status = %d, want 401", response.Code)
+			}
+		})
+	}
+
+	for _, test := range []struct {
+		name string
+		path string
+		body string
+	}{
+		{name: "put location", path: "/api/v1/location", body: `{"area":"Battersea"}`},
+		{name: "put travel", path: "/api/v1/location/travel", body: `{"area":"Edinburgh"}`},
+		{name: "delete travel", path: "/api/v1/location/travel", body: ""},
+	} {
+		t.Run("cross origin "+test.name, func(t *testing.T) {
+			method := http.MethodPut
+			if strings.HasPrefix(test.name, "delete") {
+				method = http.MethodDelete
+			}
+			request := authenticatedRequest(t, method, test.path, test.body, cookie)
+			request.Header.Set("Origin", "https://attacker.example")
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			if response.Code != http.StatusForbidden {
+				t.Fatalf("status = %d, want 403", response.Code)
+			}
+		})
+	}
+
+	getRequest := authenticatedRequest(t, http.MethodGet, "/api/v1/location", "", cookie)
+	getResponse := httptest.NewRecorder()
+	handler.ServeHTTP(getResponse, getRequest)
+	if getResponse.Code != http.StatusNotFound {
+		t.Fatalf("GET location status = %d, want 404", getResponse.Code)
+	}
+	if getResponse.Header().Get("Cache-Control") != "no-store" || getResponse.Header().Get("Referrer-Policy") != "no-referrer" {
+		t.Fatalf("location response headers = %v", getResponse.Header())
+	}
+
+	discoveryRequest := authenticatedRequest(t, http.MethodGet, "/api/v1/discovery", "", cookie)
+	discoveryResponse := httptest.NewRecorder()
+	handler.ServeHTTP(discoveryResponse, discoveryRequest)
+	if discoveryResponse.Code != http.StatusServiceUnavailable {
+		t.Fatalf("unconfigured discovery status = %d, want 503", discoveryResponse.Code)
+	}
+	if discoveryResponse.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("discovery response headers = %v", discoveryResponse.Header())
 	}
 }

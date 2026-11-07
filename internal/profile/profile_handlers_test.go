@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"tennisconnect/internal/testutil"
 )
@@ -52,6 +53,10 @@ func TestPutAndGetProfile(t *testing.T) {
 	if err := json.NewDecoder(response.Body).Decode(&got); err != nil {
 		t.Fatalf("decode profile: %v", err)
 	}
+	if got.Age < 18 || got.Age > 120 {
+		t.Fatalf("GET profile age = %d, want 18..120", got.Age)
+	}
+	input.Age = got.Age
 	if !reflect.DeepEqual(got, input) {
 		t.Fatalf("GET profile = %#v, want %#v", got, input)
 	}
@@ -78,6 +83,7 @@ func TestPutProfileReplacesAvailability(t *testing.T) {
 	if err := json.NewDecoder(response.Body).Decode(&got); err != nil {
 		t.Fatal(err)
 	}
+	updated.Age = got.Age
 	if !reflect.DeepEqual(got, updated) {
 		t.Fatalf("profile after replacement = %#v, want %#v", got, updated)
 	}
@@ -98,6 +104,7 @@ func TestInvalidUpdatePreservesExistingProfile(t *testing.T) {
 	if err := json.NewDecoder(response.Body).Decode(&got); err != nil {
 		t.Fatal(err)
 	}
+	original.Age = got.Age
 	if !reflect.DeepEqual(got, original) {
 		t.Fatal("invalid update changed stored profile")
 	}
@@ -286,5 +293,71 @@ func TestConcurrentGetNeverMixesProfileVersions(t *testing.T) {
 	case message := <-messages:
 		t.Error(message)
 	default:
+	}
+}
+
+func setBirthDate(t *testing.T, userID string, birthDate time.Time) {
+	t.Helper()
+	if _, err := testutil.DB.Exec("UPDATE users SET birth_date = $1 WHERE id = $2", birthDate.Format("2006-01-02"), userID); err != nil {
+		t.Fatalf("set birth date: %v", err)
+	}
+}
+
+func TestProfileAgeContract(t *testing.T) {
+	service, userID := newTestProfileService(t)
+	setBirthDate(t, userID, time.Now().AddDate(-30, 0, 0))
+
+	response := putProfileRequest(service, userID, validProfileInput())
+	if response.Code != http.StatusOK {
+		t.Fatalf("PUT status = %d, body = %s", response.Code, response.Body.String())
+	}
+	var putBody map[string]any
+	if err := json.NewDecoder(response.Body).Decode(&putBody); err != nil {
+		t.Fatal(err)
+	}
+	if putBody["age"] != float64(30) {
+		t.Fatalf("PUT age = %v, want 30", putBody["age"])
+	}
+	if _, ok := putBody["birth_date"]; ok {
+		t.Fatal("PUT response returned birth_date")
+	}
+
+	response = getProfileRequest(service, userID)
+	if response.Code != http.StatusOK {
+		t.Fatalf("GET status = %d", response.Code)
+	}
+	body := response.Body.String()
+	if !strings.Contains(body, `"age":30`) {
+		t.Fatalf("GET body has no server age: %s", body)
+	}
+	if strings.Contains(body, "birth_date") || strings.Contains(body, "199") {
+		t.Fatalf("GET leaked a birth date: %s", body)
+	}
+}
+
+func TestProfileAgeIgnoresClientValueAndHandlesBounds(t *testing.T) {
+	service, userID := newTestProfileService(t)
+	setBirthDate(t, userID, time.Now().AddDate(-120, 0, 0))
+	input := validProfileInput()
+	input.Age = 99
+	if response := putProfileRequest(service, userID, input); response.Code != http.StatusOK {
+		t.Fatalf("PUT status = %d", response.Code)
+	}
+	var got profileInput
+	if err := json.NewDecoder(getProfileRequest(service, userID).Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Age != 120 {
+		t.Fatalf("age = %d, want 120 for a client value of 99", got.Age)
+	}
+
+	// Registration rejects under-18s; if an impossible row exists, report the
+	// true age rather than clamping it up to 18.
+	setBirthDate(t, userID, time.Now().AddDate(-17, 0, 0))
+	if err := json.NewDecoder(getProfileRequest(service, userID).Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Age != 17 {
+		t.Fatalf("underage age = %d, want 17", got.Age)
 	}
 }

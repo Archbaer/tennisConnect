@@ -17,6 +17,8 @@ import (
 
 	"tennisconnect/internal/auth"
 	"tennisconnect/internal/config"
+	"tennisconnect/internal/discovery"
+	"tennisconnect/internal/location"
 	"tennisconnect/internal/moderation"
 	"tennisconnect/internal/photos"
 	"tennisconnect/internal/profile"
@@ -38,7 +40,7 @@ func healthHandler(ping func(context.Context) error) http.HandlerFunc {
 	}
 }
 
-func NewMux(authSvc *auth.Service, photoSvc *photos.Service, ping func(context.Context) error) *http.ServeMux {
+func NewMux(authSvc *auth.Service, photoSvc *photos.Service, locationSvc *location.Service, discoverySvc *discovery.Service, ping func(context.Context) error) *http.ServeMux {
 	mux := http.NewServeMux()
 	profiles := &profile.Service{DB: authSvc.DB, AppBaseURL: authSvc.AppBaseURL}
 	mux.Handle("GET /healthz", healthHandler(ping))
@@ -54,6 +56,11 @@ func NewMux(authSvc *auth.Service, photoSvc *photos.Service, ping func(context.C
 	mux.Handle("POST /api/v1/photos/{id}/process", authSvc.RequireUser(photoSvc.Process))
 	mux.Handle("GET /api/v1/photos", authSvc.RequireUser(photoSvc.List))
 	mux.Handle("GET /api/v1/photos/{id}/url", authSvc.RequireUser(photoSvc.URL))
+	mux.Handle("PUT /api/v1/location", authSvc.RequireUser(locationSvc.Put))
+	mux.Handle("GET /api/v1/location", authSvc.RequireUser(locationSvc.Get))
+	mux.Handle("PUT /api/v1/location/travel", authSvc.RequireUser(locationSvc.PutTravel))
+	mux.Handle("DELETE /api/v1/location/travel", authSvc.RequireUser(locationSvc.DeleteTravel))
+	mux.Handle("GET /api/v1/discovery", authSvc.RequireUser(discoverySvc.Get))
 	return mux
 }
 
@@ -89,6 +96,15 @@ func Run() error {
 		photoSvc.Moderator = moderation.New(cfg.SightengineUser, cfg.SightengineSecret)
 	}
 
+	locationSvc := &location.Service{DB: db, AppBaseURL: cfg.AppBaseURL}
+	if cfg.MapboxAccessToken != "" {
+		locationSvc.Geocoder = location.NewMapbox(cfg.MapboxAccessToken)
+	}
+	discoverySvc := &discovery.Service{DB: db}
+	if photoStore != nil {
+		discoverySvc.Presigner = photoStore
+	}
+
 	authSvc := &auth.Service{
 		DB:                 db,
 		AppBaseURL:         cfg.AppBaseURL,
@@ -100,7 +116,7 @@ func Run() error {
 	}
 	server := &http.Server{
 		Addr:              cfg.Address,
-		Handler:           NewMux(authSvc, photoSvc, db.PingContext),
+		Handler:           NewMux(authSvc, photoSvc, locationSvc, discoverySvc, db.PingContext),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      10 * time.Second,

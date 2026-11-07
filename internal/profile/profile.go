@@ -31,6 +31,8 @@ type profileInput struct {
 	MaxAge           int                 `json:"max_age"`
 	SkillTolerance   int                 `json:"skill_tolerance"`
 	Availability     []availabilityInput `json:"availability"`
+	// Age is server-computed from users.birth_date; a client value is ignored.
+	Age int `json:"age,omitempty"`
 }
 
 func validateProfile(input profileInput) (profileInput, error) {
@@ -103,6 +105,19 @@ func validateProfile(input profileInput) (profileInput, error) {
 	return input, nil
 }
 
+// ageFromBirthDate returns completed years, clamped to the contractual 18..120.
+func ageFromBirthDate(birthDate, now time.Time) int {
+	age := now.Year() - birthDate.Year()
+	if now.Month() < birthDate.Month() || (now.Month() == birthDate.Month() && now.Day() < birthDate.Day()) {
+		age--
+	}
+	// Accounts are adults by registration; never clamp a real age upward.
+	if age > 120 {
+		return 120
+	}
+	return age
+}
+
 type Service struct {
 	DB         *sql.DB
 	AppBaseURL string
@@ -132,6 +147,12 @@ func (s *Service) Put(w http.ResponseWriter, r *http.Request, userID string) {
 		return
 	}
 	defer tx.Rollback()
+	var birthDate time.Time
+	if err := tx.QueryRowContext(ctx, "SELECT birth_date FROM users WHERE id = $1", userID).Scan(&birthDate); err != nil {
+		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+		return
+	}
+	input.Age = ageFromBirthDate(birthDate, time.Now().UTC())
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO profiles (
 			user_id, display_name, gender, skill_level, ranking, bio,
@@ -242,6 +263,12 @@ func (s *Service) Get(w http.ResponseWriter, r *http.Request, userID string) {
 		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
 		return
 	}
+	var birthDate time.Time
+	if err := tx.QueryRowContext(ctx, "SELECT birth_date FROM users WHERE id = $1", userID).Scan(&birthDate); err != nil {
+		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+		return
+	}
+	input.Age = ageFromBirthDate(birthDate, time.Now().UTC())
 	if err := tx.Commit(); err != nil {
 		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
 		return
