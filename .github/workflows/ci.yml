@@ -190,18 +190,32 @@ jobs:
                 -v ON_ERROR_STOP=1 -q -f "$file"
             done
           }
+          # Assert the exact table set, not a count. A count cannot fail for the
+          # reason this job exists: PostGIS installs spatial_ref_sys plus two
+          # geometry_columns/geography_columns views, so a dropped migration can
+          # be masked by the extension's own objects and still clear a threshold
+          # (deleting 000005_locations.sql still yields 10 tables >= 10).
+          # A set derived at runtime from `grep CREATE TABLE` would shrink with
+          # the deleted file and pass just as easily, so this list is hardcoded:
+          # it must be updated deliberately when a migration adds a table.
+          expected="auth_rate_limits availability locations login_tokens photos profiles sessions spatial_ref_sys users"
           for pass in 1 2; do
             echo "::group::migration pass ${pass}"
             psql --host=localhost --username=tennisconnect --dbname=tennisconnect_test \
               -v ON_ERROR_STOP=1 -q \
               -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
             apply
-            tables="$(psql --host=localhost --username=tennisconnect --dbname=tennisconnect_test \
+            # pg_tables holds real tables; information_schema.tables also counts
+            # the PostGIS views, which is why the two counts differ.
+            actual="$(psql --host=localhost --username=tennisconnect --dbname=tennisconnect_test \
               -v ON_ERROR_STOP=1 -tA \
-              -c "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public';")"
-            echo "public tables after pass ${pass}: ${tables}"
-            if [[ "${tables}" -lt 10 ]]; then
-              echo "expected at least 10 tables, found ${tables}"
+              -c "SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename" \
+              | tr '\n' ' ' | sed 's/ *$//')"
+            echo "tables after pass ${pass}: ${actual}"
+            if [[ "${actual}" != "${expected}" ]]; then
+              echo "table set mismatch on pass ${pass}"
+              echo "  expected: ${expected}"
+              echo "  actual:   ${actual}"
               exit 1
             fi
             psql --host=localhost --username=tennisconnect --dbname=tennisconnect_test \
@@ -228,17 +242,18 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      # cache: false is required: the action installs its own Go toolchain and
-      # restores the module cache itself, which collides with the cache that
-      # setup-go already restored in this job ("tar: Cannot open: File exists")
-      # and emits a misleading non-blocking annotation on every run.
-      # The scan itself is never suppressed.
+      # Run govulncheck directly instead of via golang/govulncheck-action.
+      # The action resolves its own `stable` toolchain, so the scan used to run
+      # on whatever Go happened to be newest (1.27.x) rather than the version
+      # this repo declares. That made the result meaningless for this project:
+      # it reported "No vulnerabilities found" while the project's own toolchain
+      # reported reachable standard-library vulnerabilities, and the scan could
+      # change or break with no repo change at all.
+      # Here setup-go provisions the toolchain from go.mod (respecting the
+      # `toolchain` directive), and the scanner version is pinned so the job is
+      # reproducible.
       - name: Check vulnerabilities
-        uses: golang/govulncheck-action@032d45514ae346b1db93c04b0c90b841c370344f # v1.1.0
-        with:
-          go-package: ./...
-          repo-checkout: false
-          cache: false
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
 
       - name: Scan for secrets
         uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
