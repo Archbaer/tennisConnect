@@ -95,12 +95,22 @@ jobs:
           BEFORE_SHA: ${{ github.event.before }}
         run: |
           set -euo pipefail
+          # Resolve a base commit that is guaranteed to exist. `github.event.before`
+          # is NOT safe: on a force-push it names the pre-rebase commit, which is
+          # unreachable from the pushed history, so `git diff` fails with
+          # "fatal: bad object" (exit 128) rather than checking anything.
+          base=""
           if [[ -n "${BASE_REF}" ]]; then
             base="$(git merge-base HEAD "origin/${BASE_REF}")"
-          elif [[ -n "${BEFORE_SHA}" && "${BEFORE_SHA}" != "0000000000000000000000000000000000000000" ]]; then
+          elif [[ -n "${BEFORE_SHA}" && "${BEFORE_SHA}" != "0000000000000000000000000000000000000000" ]] \
+               && git cat-file -e "${BEFORE_SHA}^{commit}" 2>/dev/null; then
             base="${BEFORE_SHA}"
-          else
+          elif git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
             base="$(git rev-parse HEAD~1)"
+          fi
+          if [[ -z "${base}" ]]; then
+            echo "no comparable base commit (single-commit history); skipping"
+            exit 0
           fi
           echo "checking whitespace from ${base} to HEAD"
           git diff --check "${base}" HEAD
