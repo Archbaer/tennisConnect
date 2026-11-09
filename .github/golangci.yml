@@ -23,9 +23,8 @@ linters:
         - (*database/sql.Rows).Close
         - (*database/sql.Tx).Rollback
         - (*database/sql.DB).Close
-    misspell:
-      # No locale: accepts both en-US and en-GB spellings (codebase mixes them).
-      locale: ""
+    # misspell: no locale set — the schema only accepts US or UK, and either one
+    # floods the codebase with false positives (it mixes en-US and en-GB).
     gosec:
       excludes:
         # G115: conversions are bounded by upstream size limits (photos, fixtures).
