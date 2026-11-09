@@ -5,8 +5,13 @@ on: [push, pull_request]
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   verify:
+    name: verify
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -33,6 +38,7 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: true
 
       - name: Download modules
         run: go mod download
@@ -52,11 +58,192 @@ jobs:
       - name: Lint
         run: go vet ./...
 
+      # Repeat + shuffle per plan.md: a single pass cannot expose order or
+      # isolation dependence between packages sharing one test database.
       - name: Test
-        run: go test -race ./...
+        run: go test -race -count=2 -shuffle=on ./...
 
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: v2.15.0
+          args: --config=.github/golangci.yml --timeout=5m
+
+      - name: Check go.mod and go.sum are tidy
+        run: go mod tidy -diff
+
+      - name: Check for whitespace errors
+        shell: bash
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${BASE_REF}" ]]; then
+            base="$(git merge-base HEAD "origin/${BASE_REF}")"
+          elif [[ -n "${BEFORE_SHA}" && "${BEFORE_SHA}" != "0000000000000000000000000000000000000000" ]]; then
+            base="${BEFORE_SHA}"
+          else
+            base="$(git rev-parse HEAD~1)"
+          fi
+          echo "checking whitespace from ${base} to HEAD"
+          git diff --check "${base}" HEAD
+
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # Single job rather than a matrix: one stable required-check name and one
+      # shared module cache for all four targets.
+      - name: Cross-compile
+        shell: bash
+        run: |
+          set -euo pipefail
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
+            export GOOS="${target%/*}" GOARCH="${target#*/}"
+            echo "building ${target}"
+            go build ./...
+          done
+
+  test-nodb:
+    name: test-nodb
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # No database service: proves the suite still passes when TEST_DATABASE_URL
+    # is unset, so no package can acquire a hard dependency on a live database.
+    env:
+      TEST_DATABASE_URL: ""
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Test without a database
+        run: go test ./...
+
+  migrations:
+    name: migrations
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      database:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_DB: tennisconnect_test
+          POSTGRES_USER: tennisconnect
+          POSTGRES_PASSWORD: local-development-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U tennisconnect -d tennisconnect_test"
+          --health-interval 2s
+          --health-timeout 2s
+          --health-retries 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Migrations wrap themselves in BEGIN/COMMIT, so they are applied with
+      # ON_ERROR_STOP only (--single-transaction would nest transactions and
+      # commit at the file's own COMMIT). Each run starts from a dropped schema.
+      - name: Apply migrations from an empty database, twice
+        shell: bash
+        env:
+          PGPASSWORD: local-development-only
+        run: |
+          set -euo pipefail
+          apply() {
+            for file in migrations/*.sql; do
+              echo "applying ${file}"
+              psql --host=localhost --username=tennisconnect --dbname=tennisconnect_test \
+                -v ON_ERROR_STOP=1 -q -f "$file"
+            done
+          }
+          for pass in 1 2; do
+            echo "::group::migration pass ${pass}"
+            psql --host=localhost --username=tennisconnect --dbname=tennisconnect_test \
+              -v ON_ERROR_STOP=1 -q \
+              -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+            apply
+            tables="$(psql --host=localhost --username=tennisconnect --dbname=tennisconnect_test \
+              -v ON_ERROR_STOP=1 -tA \
+              -c "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public';")"
+            echo "public tables after pass ${pass}: ${tables}"
+            if [[ "${tables}" -lt 10 ]]; then
+              echo "expected at least 10 tables, found ${tables}"
+              exit 1
+            fi
+            psql --host=localhost --username=tennisconnect --dbname=tennisconnect_test \
+              -v ON_ERROR_STOP=1 -tA \
+              -c "SELECT postgis_version();"
+            echo "::endgroup::"
+          done
+
+  security:
+    name: security
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # cache: false is required: the action installs its own Go toolchain and
+      # restores the module cache itself, which collides with the cache that
+      # setup-go already restored in this job ("tar: Cannot open: File exists")
+      # and emits a misleading non-blocking annotation on every run.
+      # The scan itself is never suppressed.
       - name: Check vulnerabilities
         uses: golang/govulncheck-action@032d45514ae346b1db93c04b0c90b841c370344f # v1.1.0
         with:
           go-package: ./...
           repo-checkout: false
+          cache: false
+
+      - name: Scan for secrets
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: false
+          GITLEAKS_ENABLE_SUMMARY: false
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: false

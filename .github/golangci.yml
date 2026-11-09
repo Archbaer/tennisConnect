@@ -1,0 +1,52 @@
+version: "2"
+
+# Shared lint configuration. `go vet` runs separately in the `verify` job of
+# ci.yml, so the govet linter is intentionally not enabled here.
+linters:
+  default: none
+  enable:
+    - bodyclose
+    - errcheck
+    - gosec
+    - ineffassign
+    - misspell
+    - rowserrcheck
+    - staticcheck
+    - unused
+  settings:
+    errcheck:
+      # Deferred cleanup of read-only handles: the error is not actionable here.
+      exclude-functions:
+        - (io.Closer).Close
+        - (io.ReadCloser).Close
+        - (io.WriteCloser).Close
+        - (*database/sql.Rows).Close
+        - (*database/sql.Tx).Rollback
+        - (*database/sql.DB).Close
+    misspell:
+      # No locale: accepts both en-US and en-GB spellings (codebase mixes them).
+      locale: ""
+    gosec:
+      excludes:
+        # G115: conversions are bounded by upstream size limits (photos, fixtures).
+        - G115
+        # G124: session cookie attributes are set from config, not literals.
+        - G124
+        # G202: availability insert builds placeholders only, never values.
+        - G202
+        # G304: migrations directory is derived from the testutil source path.
+        - G304
+  exclusions:
+    rules:
+      # Test helpers intentionally construct fixtures without extra error paths.
+      - linters: [gosec]
+        path: _test\.go
+      # Known test-only findings tracked for a follow-up cleanup.
+      - linters: [rowserrcheck]
+        path: internal/photos/photo_handlers_test\.go
+      - linters: [staticcheck, ineffassign]
+        path: internal/discovery/discovery_test\.go
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
