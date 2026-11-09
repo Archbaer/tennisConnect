@@ -687,7 +687,7 @@ func TestPlaySummary(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			slots := make([]slot, 0, len(test.slots))
 			for _, fixture := range test.slots {
-				slots = append(slots, slot{weekday: fixture.weekday, start: fixture.start, end: fixture.end})
+				slots = append(slots, slot(fixture))
 			}
 			if got := playSummary(slots); got != test.want {
 				t.Fatalf("playSummary() = %q, want %q", got, test.want)
@@ -1007,7 +1007,7 @@ func TestDiscoveryPhotoURLs(t *testing.T) {
 		{order: 3, status: "rejected"},
 	}
 	mixedID := addCandidate(t, mixed)
-	response, page = fetchPage(t, service, viewerID, "")
+	response, _ = fetchPage(t, service, viewerID, "")
 	if response.Code != http.StatusOK {
 		t.Fatalf("mixed status = %d", response.Code)
 	}

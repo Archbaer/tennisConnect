@@ -280,6 +280,9 @@ func TestUploadURLFillsOneToThreeThenConflicts(t *testing.T) {
 		}
 		orders = append(orders, order)
 	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
 	if len(orders) != 3 || orders[0] != 1 || orders[1] != 2 || orders[2] != 3 {
 		t.Fatalf("display orders = %v, want [1 2 3]", orders)
 	}
