@@ -9,6 +9,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -95,6 +96,10 @@ func (s *Service) CreateReaction(w http.ResponseWriter, r *http.Request, userID 
 		httpapi.WriteError(w, http.StatusBadRequest, "invalid request")
 		return
 	}
+	// Normalise before any comparison or write: uuid ordering in Go is a string
+	// compare, so a mixed-case client value would sort differently from its
+	// stored lower-case form and trip the canonical-pair check.
+	input.TargetID = strings.ToLower(input.TargetID)
 	if !validUUID(input.TargetID) || input.TargetID == userID {
 		httpapi.WriteError(w, http.StatusBadRequest, "invalid target")
 		return
@@ -338,6 +343,7 @@ func (s *Service) Instagram(w http.ResponseWriter, r *http.Request, userID strin
 		SELECT p.instagram_handle
 		FROM matches m
 		JOIN profiles p ON p.user_id = CASE WHEN m.user_low = $2 THEN m.user_high ELSE m.user_low END
+		JOIN users u ON u.id = p.user_id AND u.deleted_at IS NULL
 		WHERE m.id = $1
 			AND (m.user_low = $2 OR m.user_high = $2)
 			AND NOT EXISTS (
@@ -369,15 +375,58 @@ func (s *Service) Block(w http.ResponseWriter, r *http.Request, userID string) {
 		httpapi.WriteError(w, http.StatusBadRequest, "invalid request")
 		return
 	}
+	input.TargetID = strings.ToLower(input.TargetID)
 	if !validUUID(input.TargetID) || input.TargetID == userID {
 		httpapi.WriteError(w, http.StatusBadRequest, "invalid target")
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), requestBudget)
 	defer cancel()
-	if _, err := s.DB.ExecContext(ctx, `
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+		return
+	}
+	defer tx.Rollback()
+
+	// Blocker 2: take the same pair lock the reaction path takes, so a reaction
+	// already in flight cannot read the old block state and then create a match
+	// after this block commits.
+	if _, err := tx.ExecContext(ctx,
+		"SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", pairKey(userID, input.TargetID)); err != nil {
+		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+		return
+	}
+
+	var targetExists bool
+	if err := tx.QueryRowContext(ctx,
+		"SELECT EXISTS (SELECT 1 FROM users WHERE id = $1 AND deleted_at IS NULL)",
+		input.TargetID).Scan(&targetExists); err != nil {
+		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+		return
+	}
+	if !targetExists {
+		httpapi.WriteError(w, http.StatusNotFound, "player not found")
+		return
+	}
+
+	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO blocks (blocker_id, blocked_id) VALUES ($1, $2)
 		ON CONFLICT DO NOTHING`, userID, input.TargetID); err != nil {
+		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+		return
+	}
+	// Close the match by deleting it, not just by filtering reads. Under the
+	// pair lock above this also covers the reverse interleaving, where a
+	// reaction committed the match moments before the block committed.
+	if _, err := tx.ExecContext(ctx, `
+		DELETE FROM matches
+		WHERE (user_low = $1 AND user_high = $2) OR (user_low = $2 AND user_high = $1)`,
+		userID, input.TargetID); err != nil {
+		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+		return
+	}
+	if err := tx.Commit(); err != nil {
 		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
 		return
 	}
@@ -389,6 +438,7 @@ SELECT m.id, CASE WHEN m.user_low = $1 THEN m.user_high ELSE m.user_low END,
 	p.display_name, m.matched_at, p.instagram_handle IS NOT NULL
 FROM matches m
 JOIN profiles p ON p.user_id = CASE WHEN m.user_low = $1 THEN m.user_high ELSE m.user_low END
+JOIN users u ON u.id = p.user_id AND u.deleted_at IS NULL
 WHERE (m.user_low = $1 OR m.user_high = $1)
 	AND NOT EXISTS (
 		SELECT 1 FROM blocks
@@ -402,6 +452,7 @@ SELECT m.id, CASE WHEN m.user_low = $2 THEN m.user_high ELSE m.user_low END,
 	p.display_name, m.matched_at, p.instagram_handle IS NOT NULL
 FROM matches m
 JOIN profiles p ON p.user_id = CASE WHEN m.user_low = $2 THEN m.user_high ELSE m.user_low END
+JOIN users u ON u.id = p.user_id AND u.deleted_at IS NULL
 WHERE m.id = $1
 	AND (m.user_low = $2 OR m.user_high = $2)
 	AND NOT EXISTS (

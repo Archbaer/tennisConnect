@@ -286,8 +286,8 @@ func TestConcurrentReciprocalLikesCreateOneMatch(t *testing.T) {
 	if count != 1 {
 		t.Fatalf("concurrent reciprocal likes created %d matches, want 1", count)
 	}
-	// Exactly one caller must learn about the match, and both must end up able
-	// to read it; otherwise a mutual like silently looks like a one-way like.
+	// Exactly one caller learns about the match (the second like is the one that
+	// completes the pair); both must still be able to read it afterwards.
 	matched := 0
 	for _, response := range responses {
 		if response.Matched {
@@ -632,5 +632,166 @@ func TestMatchListOrdersNewestFirst(t *testing.T) {
 	}
 	if list.Matches[0].DisplayName != "Sam" {
 		t.Fatalf("first row = %q, want the newest match Sam", list.Matches[0].DisplayName)
+	}
+}
+
+func TestReactionAcceptsMixedCaseTarget(t *testing.T) {
+	testutil.ResetTables(t)
+	service, _ := newService(t)
+	alex, priya := insertUser(t, "alex"), insertUser(t, "priya")
+	insertProfile(t, alex, "Alex", "")
+	insertProfile(t, priya, "Priya", "")
+
+	// A client may echo the id back in any case; both sides must still land in
+	// the same canonical pair or the check constraint turns into a 503.
+	upper := strings.ToUpper(priya)
+	response, _ := react(t, service, alex, upper, "like")
+	if response.Code != http.StatusOK {
+		t.Fatalf("upper-case target returned %d: %s", response.Code, response.Body.String())
+	}
+	second, matched := react(t, service, priya, alex, "like")
+	if second.Code != http.StatusOK || !matched.Matched {
+		t.Fatalf("reciprocal like after a mixed-case like: %d %+v", second.Code, matched)
+	}
+	var count int
+	if err := testutil.DB.QueryRow("SELECT count(*) FROM matches").Scan(&count); err != nil {
+		t.Fatalf("count matches: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("matches = %d, want 1", count)
+	}
+}
+
+func TestReactionRejectsMixedCaseSelf(t *testing.T) {
+	testutil.ResetTables(t)
+	service, _ := newService(t)
+	alex := insertUser(t, "alex")
+	insertProfile(t, alex, "Alex", "")
+
+	response, _ := react(t, service, alex, strings.ToUpper(alex), "like")
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("upper-case self reaction returned %d, want 400", response.Code)
+	}
+}
+
+func TestBlockRejectsUnknownAndDeletedTarget(t *testing.T) {
+	testutil.ResetTables(t)
+	service, _ := newService(t)
+	alex, priya := insertUser(t, "alex"), insertUser(t, "priya")
+	insertProfile(t, alex, "Alex", "")
+	insertProfile(t, priya, "Priya", "")
+	if _, err := testutil.DB.Exec("UPDATE users SET deleted_at = now() WHERE id = $1", priya); err != nil {
+		t.Fatalf("soft delete: %v", err)
+	}
+
+	unknown := httptest.NewRecorder()
+	body := `{"target_id":"00000000-0000-4000-8000-000000000001"}`
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/blocks", strings.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
+	service.Block(unknown, request, alex)
+	if unknown.Code != http.StatusNotFound {
+		t.Fatalf("unknown target block returned %d, want 404", unknown.Code)
+	}
+
+	deleted := block(t, service, alex, priya)
+	if deleted.Code != http.StatusNotFound {
+		t.Fatalf("deleted target block returned %d, want 404", deleted.Code)
+	}
+}
+
+func TestMatchReadsHideSoftDeletedAccounts(t *testing.T) {
+	testutil.ResetTables(t)
+	service, _ := newService(t)
+	alex, priya := insertUser(t, "alex"), insertUser(t, "priya")
+	insertProfile(t, alex, "Alex", "")
+	insertProfile(t, priya, "Priya", "priya.plays")
+	insertApprovedPhoto(t, priya, "photos/priya/1", 1)
+
+	react(t, service, alex, priya, "like")
+	_, matched := react(t, service, priya, alex, "like")
+
+	_, before := listMatches(t, service, alex)
+	if len(before.Matches) != 1 {
+		t.Fatalf("pre-delete matches = %d, want 1", len(before.Matches))
+	}
+
+	if _, err := testutil.DB.Exec("UPDATE users SET deleted_at = now() WHERE id = $1", priya); err != nil {
+		t.Fatalf("soft delete: %v", err)
+	}
+
+	if _, after := listMatches(t, service, alex); len(after.Matches) != 0 {
+		t.Fatalf("match list still shows a deleted account: %+v", after.Matches)
+	}
+	if response, _ := matchDetail(t, service, alex, *matched.MatchID); response.Code != http.StatusNotFound {
+		t.Fatalf("detail for a deleted account returned %d, want 404", response.Code)
+	}
+	if response, _ := discloseHandle(t, service, alex, *matched.MatchID); response.Code != http.StatusNotFound {
+		t.Fatalf("handle for a deleted account returned %d, want 404", response.Code)
+	}
+}
+
+func TestInstagramHandleSchemaMatchesGoValidator(t *testing.T) {
+	testutil.ResetTables(t)
+	userID := insertUser(t, "alex")
+	valid := []string{"priya.plays", "a_b.c9", "_ok", "a", "player.2026"}
+	if _, err := testutil.DB.Exec(
+		"INSERT INTO profiles (user_id, display_name, gender, skill_level, gender_preference, min_age, max_age) VALUES ($1,$2,'woman','intermediate','all',18,120)",
+		userID, "Alex"); err != nil {
+		t.Fatalf("insert profile: %v", err)
+	}
+	for _, handle := range valid {
+		if _, err := testutil.DB.Exec(
+			"UPDATE profiles SET instagram_handle = $1 WHERE user_id = $2", handle, userID); err != nil {
+			t.Fatalf("schema rejected valid handle %q: %v", handle, err)
+		}
+	}
+	invalid := []string{".priya", "priya.", "priya..plays", "Priya.Plays", "priya plays", strings.Repeat("a", 31)}
+	for _, handle := range invalid {
+		if _, err := testutil.DB.Exec(
+			"UPDATE profiles SET instagram_handle = $1 WHERE user_id = $2", handle, userID); err == nil {
+			t.Fatalf("schema accepted invalid handle %q", handle)
+		}
+	}
+}
+
+func TestBlockRacingAReactionCannotCreateAMatch(t *testing.T) {
+	testutil.ResetTables(t)
+	service, _ := newService(t)
+	alex, priya := insertUser(t, "alex"), insertUser(t, "priya")
+	insertProfile(t, alex, "Alex", "")
+	insertProfile(t, priya, "Priya", "")
+
+	// Priya likes first, so Alex's like would complete the pair. Run the block
+	// and Alex's like concurrently; whichever wins, no match may exist after the
+	// block is committed.
+	if response, _ := react(t, service, priya, alex, "like"); response.Code != http.StatusOK {
+		t.Fatalf("primer like returned %d", response.Code)
+	}
+
+	var wait sync.WaitGroup
+	start := make(chan struct{})
+	wait.Add(2)
+	go func() {
+		defer wait.Done()
+		<-start
+		block(t, service, alex, priya)
+	}()
+	go func() {
+		defer wait.Done()
+		<-start
+		react(t, service, alex, priya, "like")
+	}()
+	close(start)
+	wait.Wait()
+
+	var count int
+	if err := testutil.DB.QueryRow(`
+		SELECT count(*) FROM matches
+		WHERE (user_low = $1 AND user_high = $2) OR (user_low = $2 AND user_high = $1)`,
+		alex, priya).Scan(&count); err != nil {
+		t.Fatalf("count matches: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("a blocked pair ended up with %d match rows", count)
 	}
 }
