@@ -40,7 +40,10 @@ linters:
       # Test helpers intentionally construct fixtures without extra error paths.
       - linters: [gosec]
         path: _test\.go
-      # Known test-only findings tracked for a follow-up cleanup.
+      # TEMPORARY, test-only. The three findings below are fixed on
+      # feature/matches (commit 2f4c465) but that commit is not yet on main, and
+      # this branch must go green before it can merge. Delete both rules as soon
+      # as 2f4c465 reaches main; the lint gate then ships no suppressions.
       - linters: [rowserrcheck]
         path: internal/photos/photo_handlers_test\.go
       - linters: [staticcheck, ineffassign]
