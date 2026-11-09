@@ -14,11 +14,12 @@ import (
 	"tennisconnect/internal/auth"
 	"tennisconnect/internal/discovery"
 	"tennisconnect/internal/location"
+	"tennisconnect/internal/matches"
 	"tennisconnect/internal/photos"
 	"tennisconnect/internal/testutil"
 )
 
-func newTestServices(t *testing.T) (*auth.Service, *photos.Service, *location.Service, *discovery.Service) {
+func newTestServices(t *testing.T) (*auth.Service, *photos.Service, *location.Service, *discovery.Service, *matches.Service) {
 	t.Helper()
 	testutil.ResetTables(t)
 	authSvc := &auth.Service{
@@ -31,7 +32,8 @@ func newTestServices(t *testing.T) (*auth.Service, *photos.Service, *location.Se
 	return authSvc,
 		&photos.Service{DB: testutil.DB, AppBaseURL: "http://localhost:8080"},
 		&location.Service{DB: testutil.DB, AppBaseURL: "http://localhost:8080"},
-		&discovery.Service{DB: testutil.DB}
+		&discovery.Service{DB: testutil.DB},
+		&matches.Service{DB: testutil.DB, AppBaseURL: "http://localhost:8080"}
 }
 
 func insertTestSession(t *testing.T, userID string) *http.Cookie {
@@ -54,8 +56,8 @@ func authenticatedRequest(t *testing.T, method, path, body string, cookie *http.
 }
 
 func TestMuxRoutesAuthEndpoints(t *testing.T) {
-	authSvc, photoSvc, locationSvc, discoverySvc := newTestServices(t)
-	handler := NewMux(authSvc, photoSvc, locationSvc, discoverySvc, testutil.DB.PingContext)
+	authSvc, photoSvc, locationSvc, discoverySvc, matchSvc := newTestServices(t)
+	handler := NewMux(authSvc, photoSvc, locationSvc, discoverySvc, matchSvc, testutil.DB.PingContext)
 	tests := []struct {
 		name        string
 		method      string
@@ -77,6 +79,12 @@ func TestMuxRoutesAuthEndpoints(t *testing.T) {
 		{name: "process photo unauthorized", method: http.MethodPost, path: "/api/v1/photos/00000000-0000-4000-8000-000000000000/process", want: http.StatusUnauthorized},
 		{name: "list photos unauthorized", method: http.MethodGet, path: "/api/v1/photos", want: http.StatusUnauthorized},
 		{name: "photo url unauthorized", method: http.MethodGet, path: "/api/v1/photos/00000000-0000-4000-8000-000000000000/url", want: http.StatusUnauthorized},
+		{name: "discovery unauthorized", method: http.MethodGet, path: "/api/v1/discovery", want: http.StatusUnauthorized},
+		{name: "reaction unauthorized", method: http.MethodPost, path: "/api/v1/reactions", body: `{}`, contentType: "application/json", want: http.StatusUnauthorized},
+		{name: "match list unauthorized", method: http.MethodGet, path: "/api/v1/matches", want: http.StatusUnauthorized},
+		{name: "match detail unauthorized", method: http.MethodGet, path: "/api/v1/matches/00000000-0000-4000-8000-000000000000", want: http.StatusUnauthorized},
+		{name: "match instagram unauthorized", method: http.MethodGet, path: "/api/v1/matches/00000000-0000-4000-8000-000000000000/instagram", want: http.StatusUnauthorized},
+		{name: "block unauthorized", method: http.MethodPost, path: "/api/v1/blocks", body: `{}`, contentType: "application/json", want: http.StatusUnauthorized},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -96,7 +104,7 @@ func TestMuxRoutesAuthEndpoints(t *testing.T) {
 
 func TestNoPublicRouteServesPhotoObjects(t *testing.T) {
 	authSvc := &auth.Service{DB: testutil.DB, AppBaseURL: "http://localhost:8080"}
-	handler := NewMux(authSvc, &photos.Service{DB: testutil.DB}, &location.Service{DB: testutil.DB}, &discovery.Service{DB: testutil.DB}, func(context.Context) error { return nil })
+	handler := NewMux(authSvc, &photos.Service{DB: testutil.DB}, &location.Service{DB: testutil.DB}, &discovery.Service{DB: testutil.DB}, &matches.Service{DB: testutil.DB}, func(context.Context) error { return nil })
 	for _, path := range []string{"/api/v1/photos/00000000-0000-4000-8000-000000000000", "/api/v1/photos/00000000-0000-4000-8000-000000000000/process"} {
 		request := httptest.NewRequest(http.MethodGet, path, nil)
 		response := httptest.NewRecorder()
@@ -111,8 +119,8 @@ func TestNoPublicRouteServesPhotoObjects(t *testing.T) {
 }
 
 func TestLocationRoutesRequireSession(t *testing.T) {
-	authSvc, photoSvc, locationSvc, discoverySvc := newTestServices(t)
-	handler := NewMux(authSvc, photoSvc, locationSvc, discoverySvc, testutil.DB.PingContext)
+	authSvc, photoSvc, locationSvc, discoverySvc, matchSvc := newTestServices(t)
+	handler := NewMux(authSvc, photoSvc, locationSvc, discoverySvc, matchSvc, testutil.DB.PingContext)
 	userID := testutil.InsertUser(t, "routes@example.com")
 	cookie := insertTestSession(t, userID)
 
