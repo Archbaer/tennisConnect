@@ -31,6 +31,9 @@ type profileInput struct {
 	MaxAge           int                 `json:"max_age"`
 	SkillTolerance   int                 `json:"skill_tolerance"`
 	Availability     []availabilityInput `json:"availability"`
+	// InstagramHandle is optional and disclosed only inside a match. It is
+	// stored bare and lower case; a leading "@" is accepted and stripped.
+	InstagramHandle *string `json:"instagram_handle"`
 	// Age is server-computed from users.birth_date; a client value is ignored.
 	Age int `json:"age,omitempty"`
 }
@@ -76,6 +79,17 @@ func validateProfile(input profileInput) (profileInput, error) {
 	}
 	if input.SkillTolerance < 0 || input.SkillTolerance > 1 {
 		return input, errors.New("invalid skill tolerance")
+	}
+	if input.InstagramHandle != nil {
+		handle := strings.ToLower(strings.TrimSpace(*input.InstagramHandle))
+		handle = strings.TrimPrefix(handle, "@")
+		if handle == "" {
+			input.InstagramHandle = nil
+		} else if !validInstagramHandle(handle) {
+			return input, errors.New("invalid instagram handle")
+		} else {
+			input.InstagramHandle = &handle
+		}
 	}
 	if len(input.Availability) == 0 || len(input.Availability) > 20 {
 		return input, errors.New("invalid availability count")
@@ -123,6 +137,23 @@ type Service struct {
 	AppBaseURL string
 }
 
+// validInstagramHandle enforces the stored form: 1-30 of a-z, 0-9, dot and
+// underscore, with no leading or trailing dot and no consecutive dots.
+func validInstagramHandle(handle string) bool {
+	if len(handle) < 1 || len(handle) > 30 {
+		return false
+	}
+	if handle[0] == '.' || handle[len(handle)-1] == '.' || strings.Contains(handle, "..") {
+		return false
+	}
+	for _, char := range handle {
+		if (char < 'a' || char > 'z') && (char < '0' || char > '9') && char != '.' && char != '_' {
+			return false
+		}
+	}
+	return true
+}
+
 func (s *Service) Put(w http.ResponseWriter, r *http.Request, userID string) {
 	httpapi.PreventCaching(w)
 	if !httpapi.OriginAllowed(r, s.AppBaseURL) {
@@ -156,8 +187,8 @@ func (s *Service) Put(w http.ResponseWriter, r *http.Request, userID string) {
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO profiles (
 			user_id, display_name, gender, skill_level, ranking, bio,
-			gender_preference, min_age, max_age, skill_tolerance
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			gender_preference, min_age, max_age, skill_tolerance, instagram_handle
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		ON CONFLICT (user_id) DO UPDATE SET
 			display_name = EXCLUDED.display_name,
 			gender = EXCLUDED.gender,
@@ -168,8 +199,9 @@ func (s *Service) Put(w http.ResponseWriter, r *http.Request, userID string) {
 			min_age = EXCLUDED.min_age,
 			max_age = EXCLUDED.max_age,
 			skill_tolerance = EXCLUDED.skill_tolerance,
+			instagram_handle = EXCLUDED.instagram_handle,
 			updated_at = now()`, userID, input.DisplayName, input.Gender, input.SkillLevel, input.Ranking, input.Bio,
-		input.GenderPreference, input.MinAge, input.MaxAge, input.SkillTolerance)
+		input.GenderPreference, input.MinAge, input.MaxAge, input.SkillTolerance, input.InstagramHandle)
 	if err != nil {
 		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
 		return
@@ -209,12 +241,13 @@ func (s *Service) Get(w http.ResponseWriter, r *http.Request, userID string) {
 	defer tx.Rollback()
 	var input profileInput
 	var ranking sql.NullString
+	var instagram sql.NullString
 	err = tx.QueryRowContext(ctx, `
 		SELECT display_name, gender, skill_level, ranking, bio,
-			gender_preference, min_age, max_age, skill_tolerance
+			gender_preference, min_age, max_age, skill_tolerance, instagram_handle
 		FROM profiles WHERE user_id = $1`, userID).Scan(
 		&input.DisplayName, &input.Gender, &input.SkillLevel, &ranking, &input.Bio,
-		&input.GenderPreference, &input.MinAge, &input.MaxAge, &input.SkillTolerance)
+		&input.GenderPreference, &input.MinAge, &input.MaxAge, &input.SkillTolerance, &instagram)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.WriteError(w, http.StatusNotFound, "profile not found")
 		return
@@ -225,6 +258,9 @@ func (s *Service) Get(w http.ResponseWriter, r *http.Request, userID string) {
 	}
 	if ranking.Valid {
 		input.Ranking = &ranking.String
+	}
+	if instagram.Valid {
+		input.InstagramHandle = &instagram.String
 	}
 	rows, err := tx.QueryContext(ctx, `
 		SELECT weekday, start_time, end_time FROM availability
