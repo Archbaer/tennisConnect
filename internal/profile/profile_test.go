@@ -151,3 +151,64 @@ func TestValidateProfileAllowsUnicodeBioAtLimit(t *testing.T) {
 func stringPointer(value string) *string {
 	return &value
 }
+
+func TestValidateProfileNormalizesInstagramHandle(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{name: "strips leading at", input: "@Priya.Plays", want: "priya.plays"},
+		{name: "trims spaces", input: "  priya_plays  ", want: "priya_plays"},
+		{name: "allows digits and dots", input: "player.2026", want: "player.2026"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			input := validProfileInput()
+			handle := test.input
+			input.InstagramHandle = &handle
+			got, err := validateProfile(input)
+			if err != nil {
+				t.Fatalf("validateProfile() error: %v", err)
+			}
+			if got.InstagramHandle == nil || *got.InstagramHandle != test.want {
+				t.Fatalf("handle = %v, want %q", got.InstagramHandle, test.want)
+			}
+		})
+	}
+}
+
+func TestValidateProfileClearsEmptyInstagramHandle(t *testing.T) {
+	input := validProfileInput()
+	handle := "   "
+	input.InstagramHandle = &handle
+	got, err := validateProfile(input)
+	if err != nil {
+		t.Fatalf("validateProfile() error: %v", err)
+	}
+	if got.InstagramHandle != nil {
+		t.Fatalf("handle = %q, want nil", *got.InstagramHandle)
+	}
+}
+
+func TestValidateProfileRejectsInvalidInstagramHandle(t *testing.T) {
+	for _, handle := range []string{
+		"priya plays",
+		"priya-plays",
+		"priya/plays",
+		strings.Repeat("a", 31),
+		".priya",
+		"priya.",
+		"priya..plays",
+		"priya@plays",
+	} {
+		t.Run(handle, func(t *testing.T) {
+			input := validProfileInput()
+			value := handle
+			input.InstagramHandle = &value
+			if _, err := validateProfile(input); err == nil {
+				t.Fatalf("validateProfile() accepted handle %q", handle)
+			}
+		})
+	}
+}
