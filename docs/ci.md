@@ -106,7 +106,8 @@ which legacy protection does not.
 | Dismiss stale approvals on push | yes |
 | Require conversation resolution | yes |
 | Required status checks | `verify`, `lint`, `build`, `test-nodb`, `migrations`, `security`, `dependency-review` — all must be up to date with `main` before merging |
-| Require linear history | yes (squash or rebase; no merge commits) |
+| Require linear history | yes (no merge commits) |
+| Allowed merge methods | **rebase only** — squash and merge-commit are disabled at the repository level too |
 | Block force pushes | yes |
 | Block deletion | yes |
 | Require signed commits | no (single developer, no hardware key requirement) |
@@ -121,6 +122,30 @@ remove the bypass and keep the review requirement.
 
 Note that a bypass permits the merge; it does not silently skip CI. Status checks
 still run and the ruleset still blocks a non-bypassing actor on failure.
+
+### Why rebase is the only merge method
+
+The repository rule is that every distinct change gets its own commit. A
+squash-merge collapses a pull request into a single commit and destroys that
+history, so squash is disabled; a plain merge-commit would break linear history.
+Rebase is therefore the only allowed method:
+
+```sh
+gh api -X PATCH repos/Archbaer/tennisConnect \
+  -F allow_squash_merge=false -F allow_merge_commit=false -F allow_rebase_merge=true
+```
+
+Rebase is not the default in the GitHub UI so much as the only remaining option —
+with the other two methods disabled, the merge box offers rebase exclusively.
+
+### Approval for unattributed changes
+
+`require_extra_approval_for_unattributed_changes` is **disabled**. It only adds a
+review requirement when an *unattributed Copilot* pull request is opened under
+the Copilot app identity rather than on behalf of a person. Every pull request in
+this repository is opened by the owner, so the setting never applied; it is off
+to keep the effective approval count exactly 1 and avoid a surprise second
+approval if a Copilot-driven pull request ever appears.
 
 ### Changing the settings
 
