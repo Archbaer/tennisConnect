@@ -131,9 +131,9 @@ which legacy protection does not.
 | Ruleset name | `Protect main` |
 | Enforcement | `active` |
 | Target | branch, ref name `refs/heads/main` |
-| Bypass actor | Repository **admin** role (`actor_id: 5`, `repository_role`, `bypass_mode: always`) |
+| Bypass actors | none |
 | Require pull request | yes |
-| Required approvals | 1 |
+| Required approvals | **0** (single maintainer; self-approval is impossible — see below) |
 | Dismiss stale approvals on push | yes |
 | Require conversation resolution | yes |
 | Required status checks | `verify`, `lint`, `build`, `test-nodb`, `migrations`, `security`, `dependency-review` — all must be up to date with `main` before merging |
@@ -143,16 +143,40 @@ which legacy protection does not.
 | Block deletion | yes |
 | Require signed commits | no (single developer, no hardware key requirement) |
 
-### Why the admin bypass exists
+### Why the review requirement is 0
 
-This is a solo repository. Without a bypass, a requirement of 1 approving review
-would make `main` impossible to merge into, because GitHub does not let an author
-approve their own pull request. The repository admin role is therefore allowed to
-bypass, so the owner can merge their own work. If a second maintainer joins,
-remove the bypass and keep the review requirement.
+The required-approvals count is deliberately **0**, and there is **no bypass
+actor**.
 
-Note that a bypass permits the merge; it does not silently skip CI. Status checks
-still run and the ruleset still blocks a non-bypassing actor on failure.
+While the project has a single maintainer, a requirement of 1 approving review
+can never be satisfied: GitHub does not allow an author to approve their own pull
+request, so `main` would simply stop accepting merges. The previous configuration
+paired 1 approval with an admin bypass to work around that, but a bypass with
+nothing left to bypass is a footgun — it silently authorises the very thing the
+gate exists to stop, and it would keep doing so after a second maintainer joined
+and the requirement started to matter.
+
+Setting the count to 0 keeps everything that protects `main` and drops only the
+human gate. Still enforced today:
+
+- changes must arrive through a pull request — no direct pushes to `main`
+- all seven required status checks must pass (`verify`, `lint`, `build`,
+  `test-nodb`, `migrations`, `security`, `dependency-review`)
+- required checks must be up to date with `main` (`strict` policy)
+- linear history; no merge commits
+- no force-pushes and no branch deletion
+
+So a pull request rule with 0 approvals still means "no direct pushes, changes
+arrive as PRs, CI must pass" — only the approval step is gone.
+
+**When a second maintainer joins**, turn the human gate on and remove any
+reliance on bypassing:
+
+1. Set `required_approving_review_count` to `1` (full-replacement `PUT` of the
+   rules array, see below).
+2. Optionally set `require_code_owner_review` or add required reviewers.
+3. Do **not** re-add a bypass actor to work around self-approval; the point of a
+   second maintainer is that cross-approval is possible.
 
 ### Why rebase is the only merge method
 
@@ -187,9 +211,12 @@ gh api repos/Archbaer/tennisConnect/rulesets
 gh api repos/Archbaer/tennisConnect/rulesets/<ruleset_id>
 ```
 
-Update it (full replacement — send the whole `rules` array):
+Update it. `PUT` replaces only the fields you send, so a partial body is safe —
+but changing a rule's parameters requires sending that whole `rules` array,
+because the array is replaced wholesale:
 
 ```sh
+# change approvals to 1 (send the full rules array; see ruleset.json)
 gh api -X PUT repos/Archbaer/tennisConnect/rulesets/<ruleset_id> --input ruleset.json
 ```
 
@@ -200,6 +227,14 @@ gh api -X PUT repos/Archbaer/tennisConnect/rulesets/<ruleset_id> \
   -F enforcement=disabled
 gh api -X PUT repos/Archbaer/tennisConnect/rulesets/<ruleset_id> \
   -F enforcement=active
+```
+
+Always read back after changing anything, and check `bypass_actors` explicitly —
+it is easy to restore a ruleset and silently reintroduce a bypass:
+
+```sh
+gh api repos/Archbaer/tennisConnect/rulesets/<ruleset_id> \
+  --jq '{enforcement, bypass: .bypass_actors, approvals: [.rules[] | select(.type=="pull_request") | .parameters.required_approving_review_count]}'
 ```
 
 Delete it entirely (leaves `main` unprotected):
