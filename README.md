@@ -168,7 +168,13 @@ All location endpoints require a session and return `Cache-Control: no-store` wi
 
 Discovery eligibility: the viewer needs an adult account, a completed profile, an area and at least one approved photo (recent sign-in is not required). Candidates need an adult account, a profile, an area, an approved photo, no deletion, and activity in the last seven days (strictly after `now() - interval '7 days'`). Both players' gender preferences must include each other, both age ranges must contain the other's age, skill distance must fit `GREATEST` of both tolerances (beginner < improver < intermediate < advanced), and availability must overlap on the same Europe/London weekday. Distinct 409 bodies are `"complete your profile"`, `"set your area"` and `"one photo must be approved"`. Self is excluded.
 
-**Discovery is internal-only until Task 6** adds block, match and reaction exclusion predicates plus their race tests; no client may call it before then. Blocks, matches and reactions tables arrive in `000006`, so Task 5's executable query excludes self only and Task 8 must not expose discovery first.
+Discovery excludes, server-side and in the same repeatable-read query: the viewer's own row, a block in either direction, an existing match, and any target the viewer already reacted to (`like` or `pass`). Those predicates arrived with Task 6 (`migrations/000006_matches.sql`), so **discovery is now safe to expose to a client**; Task 8 wires the screens.
+
+`POST /api/v1/reactions` `{target_id, action: "like"|"pass"}` returns `{"matched": bool, "match_id"?: uuid}`. A `pass` is permanent; repeating any reaction for the same target returns 409 and never overwrites the first verdict. Reciprocal likes create exactly one row in `matches` for the canonical `(user_low, user_high)` pair, so concurrent reciprocal likes cannot duplicate it. Reacting across a block in either direction returns 403.
+
+`GET /api/v1/matches` returns `{"matches":[{match_id, display_name, matched_at, has_instagram, photo_urls[]}]}`, newest first. `GET /api/v1/matches/{id}` returns the same row for one match. Both are member-only (404 otherwise) and never carry the handle; `photo_urls[]` holds at most three five-minute signed URLs for the other player's approved photos only. `GET /api/v1/matches/{id}/instagram` is the only disclosure path and returns `{"instagram_handle": "..."}` — empty when the other player has none.
+
+`POST /api/v1/blocks` `{target_id}` is idempotent and returns 204. Blocking hides the pair in both directions in discovery, closes the match for both members (the match list and detail 404), and revokes handle and photo access immediately.
 
 ### Performance and load gate
 
