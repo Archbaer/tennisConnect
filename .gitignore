@@ -1,6 +1,7 @@
 *.md
 !README.md
 !docs/design/*.md
+!docs/ci.md
 .env
 .claude/
 .archify/
