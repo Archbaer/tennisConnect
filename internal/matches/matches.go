@@ -113,6 +113,17 @@ func (s *Service) CreateReaction(w http.ResponseWriter, r *http.Request, userID 
 	}
 	defer tx.Rollback()
 
+	// Serialise the two sides of one pair before reading anything. Without this
+	// each concurrent reciprocal like reads the other's reaction as missing
+	// (repeatable read is per statement, and both transactions are uncommitted)
+	// and neither creates the match. The lock is transaction-scoped and keyed
+	// only on the canonical pair, so unrelated pairs never contend.
+	if _, err := tx.ExecContext(ctx,
+		"SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", pairKey(userID, input.TargetID)); err != nil {
+		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+		return
+	}
+
 	var blocked bool
 	if err := tx.QueryRowContext(ctx, `
 		SELECT EXISTS (
@@ -169,6 +180,16 @@ func (s *Service) CreateReaction(w http.ResponseWriter, r *http.Request, userID 
 		return
 	}
 	httpapi.WriteJSON(w, http.StatusOK, response)
+}
+
+// pairKey returns the canonical, order-independent key for one unordered pair.
+// Both actors must derive the same key so the advisory lock serialises them.
+func pairKey(first, second string) string {
+	low, high := first, second
+	if low > high {
+		low, high = high, low
+	}
+	return low + ":" + high
 }
 
 // createMatchIfReciprocal inserts the canonical pair when the target already
