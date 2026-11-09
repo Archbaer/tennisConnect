@@ -42,7 +42,9 @@ updates:
         patterns:
           - "*"
 
-  - package-ecosystem: docker
+  # docker-compose, not docker: this repo has compose.yaml and no Dockerfile.
+  # The `docker` ecosystem only scans Dockerfiles, so it silently found nothing.
+  - package-ecosystem: docker-compose
     directory: /
     schedule:
       interval: weekly
