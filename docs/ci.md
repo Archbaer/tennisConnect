@@ -28,6 +28,11 @@ All jobs are required status checks on `main` (see ruleset below). Every job has
 | `migrations` | Broken or non-repeatable SQL. Applies every `migrations/*.sql` in filename order to a freshly dropped schema, twice, and asserts the expected tables plus PostGIS exist. |
 | `security` | Reachable vulnerabilities in the module graph and standard library (`govulncheck`) and committed secrets (`gitleaks`). |
 
+`dependency-review` (a separate workflow) is also a required check. It needs the
+repository **dependency graph** to be enabled under Settings → Code security;
+with the graph disabled the action errors out with "Dependency review is not
+supported on this repository" and blocks every PR.
+
 `lint` intentionally does **not** enable the `govet` linter: `verify` already
 runs `go vet ./...` and duplicating it only doubles the failure surface.
 
@@ -76,7 +81,11 @@ gitleaks detect --source .
 govulncheck ./...
 ```
 
-`golangci-lint` must be v2 (the config uses the `version: "2"` schema).
+`golangci-lint` must be v2 (the config uses the `version: "2"` schema). Always
+run `golangci-lint config verify --config .github/golangci.yml` after editing the
+config: the CI action validates the schema before linting, so an invalid field
+(e.g. `misspell.locale`, which only accepts `US` or `UK`, not an empty string)
+fails the job without reporting a single lint finding.
 
 ## Branch protection (ruleset)
 
