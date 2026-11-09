@@ -264,16 +264,17 @@ func TestConcurrentReciprocalLikesCreateOneMatch(t *testing.T) {
 
 	var wait sync.WaitGroup
 	start := make(chan struct{})
+	responses := make([]reactionResponse, 2)
 	wait.Add(2)
 	go func() {
 		defer wait.Done()
 		<-start
-		react(t, service, alex, priya, "like")
+		_, responses[0] = react(t, service, alex, priya, "like")
 	}()
 	go func() {
 		defer wait.Done()
 		<-start
-		react(t, service, priya, alex, "like")
+		_, responses[1] = react(t, service, priya, alex, "like")
 	}()
 	close(start)
 	wait.Wait()
@@ -284,6 +285,22 @@ func TestConcurrentReciprocalLikesCreateOneMatch(t *testing.T) {
 	}
 	if count != 1 {
 		t.Fatalf("concurrent reciprocal likes created %d matches, want 1", count)
+	}
+	// Exactly one caller must learn about the match, and both must end up able
+	// to read it; otherwise a mutual like silently looks like a one-way like.
+	matched := 0
+	for _, response := range responses {
+		if response.Matched {
+			matched++
+		}
+	}
+	if matched != 1 {
+		t.Fatalf("%d of 2 responses reported a match, want exactly 1", matched)
+	}
+	for _, viewer := range []string{alex, priya} {
+		if _, list := listMatches(t, service, viewer); len(list.Matches) != 1 {
+			t.Fatalf("%s sees %d matches after a reciprocal like", viewer, len(list.Matches))
+		}
 	}
 }
 
