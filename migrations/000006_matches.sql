@@ -11,8 +11,9 @@ CREATE TABLE reactions (
     CHECK (actor_id <> target_id)
 );
 
--- Reciprocal-like lookup reads by target and action.
-CREATE INDEX reactions_target_action_idx ON reactions (target_id, action);
+-- No secondary index on reactions: the primary key (actor_id, target_id)
+-- already serves both the discovery exclusion (actor_id = viewer) and the
+-- reciprocal-like lookup (actor_id = target, target_id = actor).
 
 -- A match is stored once per unordered pair. The canonical column order is
 -- enforced so a concurrent reciprocal like cannot create a second row.
@@ -40,8 +41,13 @@ CREATE TABLE blocks (
 CREATE INDEX blocks_blocked_idx ON blocks (blocked_id);
 
 -- The Instagram handle is optional and disclosed only through an explicit
--- match-scoped read. Stored bare (no leading @) and lower case.
+-- match-scoped read. Stored bare (no leading @) and lower case. The pattern
+-- matches the Go validator exactly: no leading, trailing or doubled dot.
 ALTER TABLE profiles
-    ADD COLUMN instagram_handle text CHECK (instagram_handle ~ '^[a-z0-9._]{1,30}$');
+    ADD COLUMN instagram_handle text CHECK (
+        instagram_handle ~ '^[a-z0-9_]([a-z0-9_.]*[a-z0-9_])?$'
+        AND instagram_handle !~ '\.\.'
+        AND char_length(instagram_handle) BETWEEN 1 AND 30
+    );
 
 COMMIT;

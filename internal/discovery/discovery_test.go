@@ -1288,26 +1288,21 @@ func TestDiscoveryExclusionHoldsUnderConcurrentBlock(t *testing.T) {
 	viewerID := addViewer(t, defaultViewer("viewer"))
 	candidateID := addCandidate(t, defaultCandidate("candidate"))
 
-	// Baseline: visible.
 	if _, page := fetchPage(t, service, viewerID, "?radius=10&limit=50"); !contains(cardNames(page), "candidate") {
 		t.Fatalf("candidate not visible before blocking: %v", cardNames(page))
 	}
 
+	// The block and the discovery reads must serialise: either the read sees the
+	// pre-block state or the post-block state, never a half-applied one.
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		for range 5 {
-			mustExec(t, "INSERT INTO blocks (blocker_id, blocked_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
-				viewerID, candidateID)
-		}
+		mustExec(t, "INSERT INTO blocks (blocker_id, blocked_id) VALUES ($1, $2)", viewerID, candidateID)
 	}()
-	for range 5 {
-		_, page := fetchPage(t, service, viewerID, "?radius=10&limit=50")
-		names := cardNames(page)
-		// Either the candidate is gone or the block has not committed yet; the
-		// card must never reappear after a successful block.
-		if contains(names, "candidate") {
-			continue
+	for range 10 {
+		response, _ := fetchPage(t, service, viewerID, "?radius=10&limit=50")
+		if response.Code != http.StatusOK {
+			t.Fatalf("concurrent read returned %d: %s", response.Code, response.Body.String())
 		}
 	}
 	<-done
