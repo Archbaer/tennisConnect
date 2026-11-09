@@ -28,6 +28,12 @@ All jobs are required status checks on `main` (see ruleset below). Every job has
 | `migrations` | Broken or non-repeatable SQL. Applies every `migrations/*.sql` in filename order to a freshly dropped schema, twice, and asserts the expected tables plus PostGIS exist. |
 | `security` | Reachable vulnerabilities in the module graph and standard library (`govulncheck`) and committed secrets (`gitleaks`). |
 
+`gitleaks` is **diff-scoped on pull requests** — it scans the commits the PR adds
+(CI logs a small number such as "7 commits scanned"), not the repository's full
+history. Full-history coverage comes from the `push`-to-`main` runs of the same
+workflow. Do not assume a green PR means the whole history is clean; run
+`gitleaks detect --source .` locally for that.
+
 `dependency-review` (a separate workflow) is also a required check. It needs the
 repository **dependency graph** to be enabled under Settings → Code security;
 with the graph disabled the action errors out with "Dependency review is not
@@ -46,14 +52,39 @@ report spurious warnings. Any error fails the job. The job drops
 "is idempotent when re-run over existing objects" — the migrations are not
 written to be re-runnable on a populated schema.
 
-#### Cache warning in `security`
+#### Why `govulncheck` no longer uses an action
 
-`golang/govulncheck-action` runs its own `actions/setup-go`, which resolves
-`stable` (currently a newer toolchain than `go.mod`) and restores the Go module
-cache a second time. That collides with the cache `setup-go` already restored in
-the job, producing `tar: Cannot open: File exists` errors in the log and a
-non-blocking annotation. The job passes `cache: false` to govulncheck only; the
-scan itself always runs.
+The `security` job runs `govulncheck` directly:
+
+```sh
+go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+```
+
+It previously used `golang/govulncheck-action`, which provisions its own Go
+toolchain by resolving `stable`. That meant the scan ran on whatever Go happened
+to be newest (1.27.x) rather than the version this repository declares, so the
+required check certified a toolchain the project does not ship. The consequence
+was not academic: under its `stable` toolchain the scan reported "No
+vulnerabilities found" while the project's own toolchain reported reachable
+standard-library vulnerabilities. Two further problems followed from that: the
+check's result could change — or turn red — with no change to the repository, and
+the action's nested `setup-go` restored the module cache a second time on top of
+the one the job had already restored, logging `tar: Cannot open: File exists`
+for every module.
+
+Running the scanner directly fixes all three: `setup-go` provisions the go.mod
+toolchain, the scanner version is pinned, and there is only one cache restore.
+Both the toolchain and the scanner version are explicit, so the job is
+reproducible.
+
+The scan is only honest if the declared toolchain is patched. `go.mod` carries a
+`toolchain` directive pinning a Go release with no reachable standard-library
+vulnerabilities; `setup-go` honours that directive (it uses `toolchain` when
+present, otherwise the `go` line). When the scanner reports findings:
+
+- Bump the `toolchain` directive to a patched release and re-run.
+- Do **not** add suppressions or `-exclude` flags to make the job pass. A green
+  security check that ignores reachable vulnerabilities is worse than a red one.
 
 ### Action pinning
 
@@ -77,7 +108,7 @@ go test ./...                                # test-nodb
 TEST_DATABASE_URL='postgres://tennisconnect:local-development-only@localhost:5432/tennisconnect_test?sslmode=disable' \
   go test -race -count=2 -shuffle=on ./...   # verify
 golangci-lint run --config .github/golangci.yml ./...
-gitleaks detect --source .
+gitleaks detect --source .                   # full history locally
 govulncheck ./...
 ```
 
