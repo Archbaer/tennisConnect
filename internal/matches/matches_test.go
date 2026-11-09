@@ -757,41 +757,45 @@ func TestInstagramHandleSchemaMatchesGoValidator(t *testing.T) {
 func TestBlockRacingAReactionCannotCreateAMatch(t *testing.T) {
 	testutil.ResetTables(t)
 	service, _ := newService(t)
-	alex, priya := insertUser(t, "alex"), insertUser(t, "priya")
-	insertProfile(t, alex, "Alex", "")
-	insertProfile(t, priya, "Priya", "")
 
-	// Priya likes first, so Alex's like would complete the pair. Run the block
-	// and Alex's like concurrently; whichever wins, no match may exist after the
-	// block is committed.
-	if response, _ := react(t, service, priya, alex, "like"); response.Code != http.StatusOK {
-		t.Fatalf("primer like returned %d", response.Code)
-	}
+	// Repeat the race in-process: a single attempt can pass by luck of
+	// scheduling, and the invariant is about the interleaving, not one run.
+	for attempt := range 15 {
+		testutil.ResetTables(t)
+		alex, priya := insertUser(t, fmt.Sprintf("alex-%d", attempt)), insertUser(t, fmt.Sprintf("priya-%d", attempt))
+		insertProfile(t, alex, "Alex", "")
+		insertProfile(t, priya, "Priya", "")
 
-	var wait sync.WaitGroup
-	start := make(chan struct{})
-	wait.Add(2)
-	go func() {
-		defer wait.Done()
-		<-start
-		block(t, service, alex, priya)
-	}()
-	go func() {
-		defer wait.Done()
-		<-start
-		react(t, service, alex, priya, "like")
-	}()
-	close(start)
-	wait.Wait()
+		// Priya likes first, so Alex's like would complete the pair.
+		if response, _ := react(t, service, priya, alex, "like"); response.Code != http.StatusOK {
+			t.Fatalf("attempt %d primer like returned %d", attempt, response.Code)
+		}
 
-	var count int
-	if err := testutil.DB.QueryRow(`
-		SELECT count(*) FROM matches
-		WHERE (user_low = $1 AND user_high = $2) OR (user_low = $2 AND user_high = $1)`,
-		alex, priya).Scan(&count); err != nil {
-		t.Fatalf("count matches: %v", err)
-	}
-	if count != 0 {
-		t.Fatalf("a blocked pair ended up with %d match rows", count)
+		var wait sync.WaitGroup
+		start := make(chan struct{})
+		wait.Add(2)
+		go func() {
+			defer wait.Done()
+			<-start
+			block(t, service, alex, priya)
+		}()
+		go func() {
+			defer wait.Done()
+			<-start
+			react(t, service, alex, priya, "like")
+		}()
+		close(start)
+		wait.Wait()
+
+		var count int
+		if err := testutil.DB.QueryRow(`
+			SELECT count(*) FROM matches
+			WHERE (user_low = $1 AND user_high = $2) OR (user_low = $2 AND user_high = $1)`,
+			alex, priya).Scan(&count); err != nil {
+			t.Fatalf("attempt %d count matches: %v", attempt, err)
+		}
+		if count != 0 {
+			t.Fatalf("attempt %d: a blocked pair ended up with %d match rows", attempt, count)
+		}
 	}
 }

@@ -1282,6 +1282,10 @@ func TestDiscoveryExclusionIsPerViewer(t *testing.T) {
 	}
 }
 
+// TestDiscoveryExclusionHoldsUnderConcurrentBlock covers ordering, not the
+// predicate itself: reads racing a block never fail and never return the card
+// once the block has committed. The exclusion predicate is covered directly by
+// TestDiscoveryExcludesBlockedBothDirections.
 func TestDiscoveryExclusionHoldsUnderConcurrentBlock(t *testing.T) {
 	testutil.ResetTables(t)
 	service, _ := newDiscoveryService(t)
@@ -1292,8 +1296,6 @@ func TestDiscoveryExclusionHoldsUnderConcurrentBlock(t *testing.T) {
 		t.Fatalf("candidate not visible before blocking: %v", cardNames(page))
 	}
 
-	// The block and the discovery reads must serialise: either the read sees the
-	// pre-block state or the post-block state, never a half-applied one.
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
@@ -1306,6 +1308,7 @@ func TestDiscoveryExclusionHoldsUnderConcurrentBlock(t *testing.T) {
 		}
 	}
 	<-done
+
 	if _, page := fetchPage(t, service, viewerID, "?radius=10&limit=50"); contains(cardNames(page), "candidate") {
 		t.Fatal("blocked candidate visible after the block committed")
 	}
