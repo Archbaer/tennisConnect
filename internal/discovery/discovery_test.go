@@ -1051,7 +1051,7 @@ func TestDiscoveryPhotoURLs(t *testing.T) {
 	}
 }
 
-func TestDiscoverySelfExclusionAndTask6Gate(t *testing.T) {
+func TestDiscoveryExcludesSelfAndDocumentsTask6Predicates(t *testing.T) {
 	testutil.ResetTables(t)
 	service, _ := newDiscoveryService(t)
 	viewerID := addViewer(t, defaultViewer("viewer"))
@@ -1068,17 +1068,16 @@ func TestDiscoverySelfExclusionAndTask6Gate(t *testing.T) {
 		t.Fatal("eligible candidate missing")
 	}
 
+	// Task 6 landed the exclusion predicates, so the executable SQL must now
+	// reference all three tables and the pre-Task-6 exposure gate must be gone.
 	source, err := os.ReadFile("discovery.go")
 	if err != nil {
 		t.Fatalf("read discovery source: %v", err)
 	}
-	if !strings.Contains(string(source), "Task 6") {
-		t.Fatal("discovery source does not document the Task 6 exposure gate")
-	}
 	executable := stripComments(string(source))
-	for _, forbidden := range []string{"blocks", "matches", "reactions"} {
-		if regexp.MustCompile(`(?i)\b` + forbidden + `\b`).MatchString(executable) {
-			t.Fatalf("executable SQL references Task 6 table %q", forbidden)
+	for _, required := range []string{"blocks", "matches", "reactions"} {
+		if !regexp.MustCompile(`(?i)\b` + required + `\b`).MatchString(executable) {
+			t.Fatalf("executable SQL is missing the Task 6 exclusion for %q", required)
 		}
 	}
 
@@ -1086,8 +1085,8 @@ func TestDiscoverySelfExclusionAndTask6Gate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read README: %v", err)
 	}
-	if !strings.Contains(string(readme), "internal-only until Task 6") {
-		t.Fatal("README lacks the discovery internal-only gate")
+	if strings.Contains(string(readme), "internal-only until Task 6") {
+		t.Fatal("README still carries the obsolete discovery internal-only gate")
 	}
 }
 
@@ -1147,5 +1146,172 @@ func TestDiscoveryPrivacyScan(t *testing.T) {
 	miles, userID, radius := decodeCursor(t, *page.NextCursor)
 	if miles < 0 || miles > radius || radius != 10 || len(userID) != 36 {
 		t.Fatalf("cursor contents miles=%d user=%q radius=%d", miles, userID, radius)
+	}
+}
+
+// insertReaction records a one-way reaction for the Task 6 exclusion tests.
+func insertReaction(t *testing.T, actorID, targetID, action string) {
+	t.Helper()
+	mustExec(t, "INSERT INTO reactions (actor_id, target_id, action) VALUES ($1, $2, $3)",
+		actorID, targetID, action)
+}
+
+func insertMatch(t *testing.T, first, second string) {
+	t.Helper()
+	low, high := first, second
+	if low > high {
+		low, high = high, low
+	}
+	mustExec(t, "INSERT INTO matches (user_low, user_high) VALUES ($1, $2)", low, high)
+}
+
+func insertBlock(t *testing.T, blockerID, blockedID string) {
+	t.Helper()
+	mustExec(t, "INSERT INTO blocks (blocker_id, blocked_id) VALUES ($1, $2)", blockerID, blockedID)
+}
+
+func TestDiscoveryExcludesReactedTargets(t *testing.T) {
+	testutil.ResetTables(t)
+	service, _ := newDiscoveryService(t)
+	viewerID := addViewer(t, defaultViewer("viewer"))
+
+	liked := addCandidate(t, defaultCandidate("liked"))
+	passed := addCandidate(t, defaultCandidate("passed"))
+	addCandidate(t, defaultCandidate("untouched"))
+
+	insertReaction(t, viewerID, liked, "like")
+	insertReaction(t, viewerID, passed, "pass")
+
+	response, page := fetchPage(t, service, viewerID, "?radius=10&limit=50")
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", response.Code, response.Body.String())
+	}
+	names := cardNames(page)
+	if contains(names, "liked") || contains(names, "passed") {
+		t.Fatalf("already reacted targets still visible: %v", names)
+	}
+	if !contains(names, "untouched") {
+		t.Fatalf("unreacted candidate missing: %v", names)
+	}
+}
+
+func TestDiscoveryExcludesBlockedBothDirections(t *testing.T) {
+	testutil.ResetTables(t)
+	service, _ := newDiscoveryService(t)
+	viewerID := addViewer(t, defaultViewer("viewer"))
+
+	blockedByViewer := addCandidate(t, defaultCandidate("blockedByViewer"))
+	blockedViewer := addCandidate(t, defaultCandidate("blockedViewer"))
+	addCandidate(t, defaultCandidate("visible"))
+
+	insertBlock(t, viewerID, blockedByViewer)
+	insertBlock(t, blockedViewer, viewerID)
+
+	response, page := fetchPage(t, service, viewerID, "?radius=10&limit=50")
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", response.Code, response.Body.String())
+	}
+	names := cardNames(page)
+	if contains(names, "blockedByViewer") || contains(names, "blockedViewer") {
+		t.Fatalf("blocked players still visible: %v", names)
+	}
+	if !contains(names, "visible") {
+		t.Fatalf("unblocked candidate missing: %v", names)
+	}
+}
+
+func TestDiscoveryExcludesExistingMatches(t *testing.T) {
+	testutil.ResetTables(t)
+	service, _ := newDiscoveryService(t)
+	viewerID := addViewer(t, defaultViewer("viewer"))
+
+	matched := addCandidate(t, defaultCandidate("matched"))
+	addCandidate(t, defaultCandidate("available"))
+	insertMatch(t, viewerID, matched)
+
+	response, page := fetchPage(t, service, viewerID, "?radius=10&limit=50")
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", response.Code, response.Body.String())
+	}
+	names := cardNames(page)
+	if contains(names, "matched") {
+		t.Fatalf("existing match still in discovery: %v", names)
+	}
+	if !contains(names, "available") {
+		t.Fatalf("available candidate missing: %v", names)
+	}
+}
+
+func TestDiscoveryExclusionSurvivesPagination(t *testing.T) {
+	testutil.ResetTables(t)
+	service, _ := newDiscoveryService(t)
+	viewerID := addViewer(t, defaultViewer("viewer"))
+
+	first := addCandidate(t, defaultCandidate("first"))
+	second := addCandidate(t, defaultCandidate("second"))
+	third := addCandidate(t, defaultCandidate("third"))
+	insertReaction(t, viewerID, first, "pass")
+	insertBlock(t, viewerID, second)
+	insertMatch(t, viewerID, third)
+
+	response, page := fetchPage(t, service, viewerID, "?radius=10&limit=20")
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d", response.Code)
+	}
+	if len(page.Cards) != 0 || page.NextCursor != nil {
+		t.Fatalf("expected an empty terminal page, got %d cards", len(page.Cards))
+	}
+}
+
+func TestDiscoveryExclusionIsPerViewer(t *testing.T) {
+	testutil.ResetTables(t)
+	service, _ := newDiscoveryService(t)
+	viewerA := addViewer(t, defaultViewer("viewerA"))
+	viewerB := addViewer(t, defaultViewer("viewerB"))
+
+	target := addCandidate(t, defaultCandidate("target"))
+	insertBlock(t, viewerA, target)
+
+	_, pageA := fetchPage(t, service, viewerA, "?radius=10&limit=50")
+	if contains(cardNames(pageA), "target") {
+		t.Fatalf("blocker still sees the blocked player: %v", cardNames(pageA))
+	}
+	_, pageB := fetchPage(t, service, viewerB, "?radius=10&limit=50")
+	if !contains(cardNames(pageB), "target") {
+		t.Fatalf("unrelated viewer lost the player: %v", cardNames(pageB))
+	}
+}
+
+func TestDiscoveryExclusionHoldsUnderConcurrentBlock(t *testing.T) {
+	testutil.ResetTables(t)
+	service, _ := newDiscoveryService(t)
+	viewerID := addViewer(t, defaultViewer("viewer"))
+	candidateID := addCandidate(t, defaultCandidate("candidate"))
+
+	// Baseline: visible.
+	if _, page := fetchPage(t, service, viewerID, "?radius=10&limit=50"); !contains(cardNames(page), "candidate") {
+		t.Fatalf("candidate not visible before blocking: %v", cardNames(page))
+	}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for range 5 {
+			mustExec(t, "INSERT INTO blocks (blocker_id, blocked_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+				viewerID, candidateID)
+		}
+	}()
+	for range 5 {
+		_, page := fetchPage(t, service, viewerID, "?radius=10&limit=50")
+		names := cardNames(page)
+		// Either the candidate is gone or the block has not committed yet; the
+		// card must never reappear after a successful block.
+		if contains(names, "candidate") {
+			continue
+		}
+	}
+	<-done
+	if _, page := fetchPage(t, service, viewerID, "?radius=10&limit=50"); contains(cardNames(page), "candidate") {
+		t.Fatal("blocked candidate visible after the block committed")
 	}
 }

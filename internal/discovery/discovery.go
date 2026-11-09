@@ -59,8 +59,9 @@ type pageCursor struct {
 
 // The discovery page uses two mutually exclusive location branches so both
 // GiST indexes are usable. A live travel destination wins; otherwise home.
-// Task 6 will extend the WHERE clause with block, match and reaction exclusion
-// predicates once those tables exist; Task 5 intentionally excludes only self.
+// Exclusions are evaluated here, not in the client: a block in either
+// direction, an existing match, and any target the viewer already reacted to
+// are all removed server-side.
 const candidateQuery = `
 WITH viewer AS (
 	SELECT CASE
@@ -108,6 +109,20 @@ JOIN viewer_profile vp ON true
 JOIN viewer_user vu ON true
 WHERE s.user_id <> $1
 	AND u.deleted_at IS NULL
+	AND NOT EXISTS (
+		SELECT 1 FROM blocks b
+		WHERE (b.blocker_id = $1 AND b.blocked_id = s.user_id)
+			OR (b.blocker_id = s.user_id AND b.blocked_id = $1)
+	)
+	AND NOT EXISTS (
+		SELECT 1 FROM matches m
+		WHERE (m.user_low = $1 AND m.user_high = s.user_id)
+			OR (m.user_low = s.user_id AND m.user_high = $1)
+	)
+	AND NOT EXISTS (
+		SELECT 1 FROM reactions r
+		WHERE r.actor_id = $1 AND r.target_id = s.user_id
+	)
 	AND u.birth_date <= (current_date - interval '18 years')::date
 	AND u.last_active_at > now() - interval '7 days'
 	AND EXISTS (
