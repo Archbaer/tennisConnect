@@ -198,7 +198,7 @@ jobs:
           # A set derived at runtime from `grep CREATE TABLE` would shrink with
           # the deleted file and pass just as easily, so this list is hardcoded:
           # it must be updated deliberately when a migration adds a table.
-          expected="auth_rate_limits availability locations login_tokens photos profiles sessions spatial_ref_sys users"
+          expected="auth_rate_limits availability blocks locations login_tokens matches photos profiles reactions sessions spatial_ref_sys users"
           for pass in 1 2; do
             echo "::group::migration pass ${pass}"
             psql --host=localhost --username=tennisconnect --dbname=tennisconnect_test \
