@@ -10,7 +10,11 @@ services:
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
-      - database-data:/var/lib/postgresql/data
+      # Postgres 18 moved its data directory to /var/lib/postgresql/<major>/docker
+      # and now requires the mount one level up; mounting the old
+      # /var/lib/postgresql/data path leaves an empty PGDATA and the entrypoint
+      # refuses to start, because it finds no PG_VERSION where it expects one.
+      - database-data:/var/lib/postgresql
       - ./migrations:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U tennisconnect -d tennisconnect"]
