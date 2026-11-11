@@ -22,6 +22,9 @@ import (
 	"tennisconnect/internal/httpapi"
 )
 
+// NormalizeEmail trims and validates an address, lower-casing only the domain.
+func NormalizeEmail(raw string) (string, error) { return normalizeEmail(raw) }
+
 func normalizeEmail(raw string) (string, error) {
 	trimmed := strings.TrimSpace(raw)
 	if len(trimmed) > 254 {
@@ -58,6 +61,9 @@ func newToken() (string, [32]byte, error) {
 	token := base64.RawURLEncoding.EncodeToString(raw[:])
 	return token, sha256.Sum256([]byte(token)), nil
 }
+
+// EncryptEmail encrypts an address with the domain-separated e-mail key.
+func EncryptEmail(email string, key []byte) ([]byte, error) { return encryptEmail(email, key) }
 
 func encryptEmail(email string, key []byte) ([]byte, error) {
 	if len(key) != 32 {
@@ -109,11 +115,17 @@ type Service struct {
 	SendMagicLink      func(context.Context, string, string) error
 }
 
-func (a *Service) lookupHMAC(email string) []byte {
-	mac := hmac.New(sha256.New, a.EmailHMACKey)
+// EmailLookupHMAC returns the stable lookup key for an address.
+func EmailLookupHMAC(email string, key []byte) []byte {
+	mac := hmac.New(sha256.New, key)
 	mac.Write([]byte("email-lookup-v1\x00" + email))
 	return mac.Sum(nil)
 }
+
+func (a *Service) lookupHMAC(email string) []byte { return EmailLookupHMAC(email, a.EmailHMACKey) }
+
+// ClientIP returns the proxy-appended client address, or the socket address.
+func ClientIP(r *http.Request, trustProxy bool) string { return clientIP(r, trustProxy) }
 
 func (a *Service) rateLimitHMAC(kind, identifier string) []byte {
 	mac := hmac.New(sha256.New, a.EmailHMACKey)
