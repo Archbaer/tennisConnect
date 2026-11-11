@@ -93,7 +93,7 @@ func RunTestMain(m *testing.M) {
 func ResetTables(t *testing.T) {
 	t.Helper()
 	requireDB(t)
-	if _, err := DB.Exec("TRUNCATE login_tokens, sessions, auth_rate_limits, users CASCADE"); err != nil {
+	if _, err := DB.Exec("TRUNCATE login_tokens, sessions, auth_rate_limits, reviewers, reviewer_login_tokens, reviewer_sessions, reviewer_rate_limits, safety_rate_limits, users CASCADE"); err != nil {
 		t.Fatalf("reset auth tables: %v", err)
 	}
 }
