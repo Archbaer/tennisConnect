@@ -15,6 +15,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
+	"tennisconnect/internal/account"
 	"tennisconnect/internal/auth"
 	"tennisconnect/internal/config"
 	"tennisconnect/internal/discovery"
@@ -23,6 +24,8 @@ import (
 	"tennisconnect/internal/moderation"
 	"tennisconnect/internal/photos"
 	"tennisconnect/internal/profile"
+	"tennisconnect/internal/reviewer"
+	"tennisconnect/internal/safety"
 	"tennisconnect/internal/storage"
 )
 
@@ -41,7 +44,7 @@ func healthHandler(ping func(context.Context) error) http.HandlerFunc {
 	}
 }
 
-func NewMux(authSvc *auth.Service, photoSvc *photos.Service, locationSvc *location.Service, discoverySvc *discovery.Service, matchSvc *matches.Service, ping func(context.Context) error) *http.ServeMux {
+func NewMux(authSvc *auth.Service, photoSvc *photos.Service, locationSvc *location.Service, discoverySvc *discovery.Service, matchSvc *matches.Service, safetySvc *safety.Service, accountSvc *account.Service, reviewerSvc *reviewer.Service, ping func(context.Context) error) *http.ServeMux {
 	mux := http.NewServeMux()
 	profiles := &profile.Service{DB: authSvc.DB, AppBaseURL: authSvc.AppBaseURL}
 	mux.Handle("GET /healthz", healthHandler(ping))
@@ -67,6 +70,21 @@ func NewMux(authSvc *auth.Service, photoSvc *photos.Service, locationSvc *locati
 	mux.Handle("GET /api/v1/matches/{id}", authSvc.RequireUser(matchSvc.Detail))
 	mux.Handle("GET /api/v1/matches/{id}/instagram", authSvc.RequireUser(matchSvc.Instagram))
 	mux.Handle("POST /api/v1/blocks", authSvc.RequireUser(matchSvc.Block))
+	mux.Handle("POST /api/v1/reports", authSvc.RequireUser(safetySvc.Report))
+	mux.Handle("DELETE /api/v1/account", authSvc.RequireUser(accountSvc.Delete))
+	mux.Handle("GET /api/v1/account/export", authSvc.RequireUser(accountSvc.Export))
+	mux.Handle("GET /api/v1/account/appeal", authSvc.RequireAccount(accountSvc.AppealStatus))
+	mux.Handle("POST /api/v1/account/appeal", authSvc.RequireAccount(accountSvc.SubmitAppeal))
+	mux.Handle("POST /api/v1/reviewer/auth/link", http.HandlerFunc(reviewerSvc.RequestLink))
+	mux.Handle("GET /reviewer/verify", http.HandlerFunc(reviewerSvc.ConfirmLink))
+	mux.Handle("POST /api/v1/reviewer/auth/verify", http.HandlerFunc(reviewerSvc.VerifyLink))
+	mux.Handle("POST /api/v1/reviewer/auth/sign-out", http.HandlerFunc(reviewerSvc.SignOut))
+	mux.Handle("POST /api/v1/reviewer/mfa/enroll", http.HandlerFunc(reviewerSvc.EnrollMFA))
+	mux.Handle("POST /api/v1/reviewer/mfa/verify", http.HandlerFunc(reviewerSvc.VerifyMFA))
+	mux.Handle("GET /api/v1/reviewer/reports", reviewerSvc.RequireReviewer(safetySvc.List))
+	mux.Handle("GET /api/v1/reviewer/reports/{id}", reviewerSvc.RequireReviewer(safetySvc.Detail))
+	mux.Handle("POST /api/v1/reviewer/reports/{id}/dismiss", reviewerSvc.RequireReviewer(safetySvc.Dismiss))
+	mux.Handle("POST /api/v1/reviewer/reports/{id}/ban", reviewerSvc.RequireReviewer(safetySvc.Ban))
 	return mux
 }
 
@@ -115,6 +133,7 @@ func Run() error {
 		matchSvc.Presigner = photoStore
 	}
 
+	mailer := auth.NewMailer(cfg.ResendAPIKey, cfg.EmailFrom)
 	authSvc := &auth.Service{
 		DB:                 db,
 		AppBaseURL:         cfg.AppBaseURL,
@@ -122,11 +141,22 @@ func Run() error {
 		EmailHMACKey:       cfg.EmailHMACKey,
 		CookieSecure:       cfg.CookieSecure,
 		TrustProxy:         cfg.TrustProxy,
-		SendMagicLink:      auth.NewMailer(cfg.ResendAPIKey, cfg.EmailFrom),
+		SendMagicLink:      mailer,
+	}
+	safetySvc := &safety.Service{DB: db, AppBaseURL: cfg.AppBaseURL, HMACKey: cfg.EmailHMACKey}
+	accountSvc := &account.Service{DB: db, AppBaseURL: cfg.AppBaseURL}
+	reviewerSvc := &reviewer.Service{
+		DB:                 db,
+		AppBaseURL:         cfg.AppBaseURL,
+		EmailEncryptionKey: cfg.EmailEncryptionKey,
+		EmailHMACKey:       cfg.EmailHMACKey,
+		CookieSecure:       cfg.CookieSecure,
+		TrustProxy:         cfg.TrustProxy,
+		SendMagicLink:      mailer,
 	}
 	server := &http.Server{
 		Addr:              cfg.Address,
-		Handler:           NewMux(authSvc, photoSvc, locationSvc, discoverySvc, matchSvc, db.PingContext),
+		Handler:           NewMux(authSvc, photoSvc, locationSvc, discoverySvc, matchSvc, safetySvc, accountSvc, reviewerSvc, db.PingContext),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      10 * time.Second,
@@ -153,9 +183,18 @@ func Run() error {
 		case <-cleanupTicker.C:
 			cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			err := authSvc.CleanupExpired(cleanupCtx)
+			if err == nil {
+				err = reviewerSvc.CleanupExpired(cleanupCtx)
+			}
+			if err == nil {
+				err = safetySvc.CleanupExpired(cleanupCtx)
+			}
+			if err == nil {
+				err = accountSvc.CleanupExpired(cleanupCtx)
+			}
 			cancel()
 			if err != nil {
-				log.Printf("auth cleanup failed: %v", err)
+				log.Printf("cleanup failed: %v", err)
 			}
 		case <-ctx.Done():
 			shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
