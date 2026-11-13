@@ -145,7 +145,7 @@ func (s *Service) CreateReaction(w http.ResponseWriter, r *http.Request, userID 
 
 	var targetExists bool
 	if err := tx.QueryRowContext(ctx,
-		"SELECT EXISTS (SELECT 1 FROM users WHERE id = $1 AND deleted_at IS NULL)",
+		"SELECT EXISTS (SELECT 1 FROM users WHERE id = $1 AND deleted_at IS NULL AND banned_at IS NULL)",
 		input.TargetID).Scan(&targetExists); err != nil {
 		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
 		return
@@ -343,7 +343,7 @@ func (s *Service) Instagram(w http.ResponseWriter, r *http.Request, userID strin
 		SELECT p.instagram_handle
 		FROM matches m
 		JOIN profiles p ON p.user_id = CASE WHEN m.user_low = $2 THEN m.user_high ELSE m.user_low END
-		JOIN users u ON u.id = p.user_id AND u.deleted_at IS NULL
+		JOIN users u ON u.id = p.user_id AND u.deleted_at IS NULL AND u.banned_at IS NULL
 		WHERE m.id = $1
 			AND (m.user_low = $2 OR m.user_high = $2)
 			AND NOT EXISTS (
@@ -400,7 +400,7 @@ func (s *Service) Block(w http.ResponseWriter, r *http.Request, userID string) {
 
 	var targetExists bool
 	if err := tx.QueryRowContext(ctx,
-		"SELECT EXISTS (SELECT 1 FROM users WHERE id = $1 AND deleted_at IS NULL)",
+		"SELECT EXISTS (SELECT 1 FROM users WHERE id = $1 AND deleted_at IS NULL AND banned_at IS NULL)",
 		input.TargetID).Scan(&targetExists); err != nil {
 		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
 		return
@@ -438,7 +438,7 @@ SELECT m.id, CASE WHEN m.user_low = $1 THEN m.user_high ELSE m.user_low END,
 	p.display_name, m.matched_at, p.instagram_handle IS NOT NULL
 FROM matches m
 JOIN profiles p ON p.user_id = CASE WHEN m.user_low = $1 THEN m.user_high ELSE m.user_low END
-JOIN users u ON u.id = p.user_id AND u.deleted_at IS NULL
+JOIN users u ON u.id = p.user_id AND u.deleted_at IS NULL AND u.banned_at IS NULL
 WHERE (m.user_low = $1 OR m.user_high = $1)
 	AND NOT EXISTS (
 		SELECT 1 FROM blocks
@@ -452,7 +452,7 @@ SELECT m.id, CASE WHEN m.user_low = $2 THEN m.user_high ELSE m.user_low END,
 	p.display_name, m.matched_at, p.instagram_handle IS NOT NULL
 FROM matches m
 JOIN profiles p ON p.user_id = CASE WHEN m.user_low = $2 THEN m.user_high ELSE m.user_low END
-JOIN users u ON u.id = p.user_id AND u.deleted_at IS NULL
+JOIN users u ON u.id = p.user_id AND u.deleted_at IS NULL AND u.banned_at IS NULL
 WHERE m.id = $1
 	AND (m.user_low = $2 OR m.user_high = $2)
 	AND NOT EXISTS (

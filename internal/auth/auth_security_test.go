@@ -222,3 +222,41 @@ func TestSignOutDatabaseFailureKeepsCookieForRetry(t *testing.T) {
 		t.Fatalf("database failure cleared session cookie: %#v", cookies)
 	}
 }
+
+func TestBannedUserSessionIsRestrictedToAppeal(t *testing.T) {
+	auth, emails := newTestAuth(t)
+	userID := insertTestUser(t, auth, "banned@example.com")
+	token := requestMagicToken(t, auth, emails, "banned@example.com")
+	cookie := responseSessionCookie(t, verifyTokenRequest(auth, token))
+	if _, err := testutil.DB.Exec("UPDATE users SET banned_at = now() WHERE id = $1", userID); err != nil {
+		t.Fatal(err)
+	}
+
+	player := httptest.NewRecorder()
+	playerRequest := httptest.NewRequest(http.MethodGet, "/api/v1/profile", nil)
+	playerRequest.AddCookie(cookie)
+	auth.RequireUser(func(w http.ResponseWriter, _ *http.Request, _ string) {
+		w.WriteHeader(http.StatusNoContent)
+	})(player, playerRequest)
+	if player.Code != http.StatusForbidden {
+		t.Fatalf("player status = %d, want 403", player.Code)
+	}
+
+	appeal := httptest.NewRecorder()
+	appealRequest := httptest.NewRequest(http.MethodGet, "/api/v1/account/appeal", nil)
+	appealRequest.AddCookie(cookie)
+	auth.RequireAccount(func(w http.ResponseWriter, _ *http.Request, _ string) {
+		w.WriteHeader(http.StatusNoContent)
+	})(appeal, appealRequest)
+	if appeal.Code != http.StatusNoContent {
+		t.Fatalf("appeal status = %d, want 204", appeal.Code)
+	}
+
+	session := httptest.NewRecorder()
+	sessionRequest := httptest.NewRequest(http.MethodGet, "/api/v1/auth/session", nil)
+	sessionRequest.AddCookie(cookie)
+	auth.Session(session, sessionRequest)
+	if session.Code != http.StatusForbidden {
+		t.Fatalf("session status = %d, want 403", session.Code)
+	}
+}

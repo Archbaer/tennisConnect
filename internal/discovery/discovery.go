@@ -108,7 +108,7 @@ JOIN users u ON u.id = s.user_id
 JOIN viewer_profile vp ON true
 JOIN viewer_user vu ON true
 WHERE s.user_id <> $1
-	AND u.deleted_at IS NULL
+	AND u.deleted_at IS NULL AND u.banned_at IS NULL
 	AND NOT EXISTS (
 		SELECT 1 FROM blocks b
 		WHERE (b.blocker_id = $1 AND b.blocked_id = s.user_id)
@@ -325,7 +325,7 @@ func (s *Service) viewerEligible(ctx context.Context, tx *sql.Tx, w http.Respons
 	err := tx.QueryRowContext(ctx, `
 		SELECT u.birth_date
 		FROM profiles p JOIN users u ON u.id = p.user_id
-		WHERE p.user_id = $1 AND u.deleted_at IS NULL`, userID).Scan(&birthDate)
+		WHERE p.user_id = $1 AND u.deleted_at IS NULL AND u.banned_at IS NULL`, userID).Scan(&birthDate)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.WriteError(w, http.StatusConflict, "complete your profile")
 		return false
