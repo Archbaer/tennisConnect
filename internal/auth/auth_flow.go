@@ -153,8 +153,16 @@ func (a *Service) VerifyLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if deletedAt.Valid {
-		httpapi.WriteError(w, http.StatusUnauthorized, "invalid or expired link")
-		return
+		// Signing in inside the 30-day recovery window restores the account.
+		// After it, the row is either purged by the hourly cleanup or rejected.
+		if time.Since(deletedAt.Time) > 30*24*time.Hour {
+			httpapi.WriteError(w, http.StatusUnauthorized, "invalid or expired link")
+			return
+		}
+		if _, err := tx.ExecContext(ctx, "UPDATE users SET deleted_at = NULL WHERE id = $1", userID); err != nil {
+			httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+			return
+		}
 	}
 	if _, err := tx.ExecContext(ctx, "UPDATE users SET last_active_at = now() WHERE id = $1", userID); err != nil {
 		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
@@ -225,9 +233,9 @@ func (a *Service) Register(w http.ResponseWriter, r *http.Request) {
 		ON CONFLICT (email_lookup_hmac) DO NOTHING
 		RETURNING id`, identity.emailEncrypted, identity.emailHMAC, birthDate).Scan(&userID)
 	if errors.Is(err, sql.ErrNoRows) {
-		var deletedAt sql.NullTime
-		err = tx.QueryRowContext(ctx, "SELECT id, deleted_at FROM users WHERE email_lookup_hmac = $1", identity.emailHMAC).Scan(&userID, &deletedAt)
-		if err == nil && deletedAt.Valid {
+		var deletedAt, bannedAt sql.NullTime
+		err = tx.QueryRowContext(ctx, "SELECT id, deleted_at, banned_at FROM users WHERE email_lookup_hmac = $1", identity.emailHMAC).Scan(&userID, &deletedAt, &bannedAt)
+		if err == nil && (deletedAt.Valid || bannedAt.Valid) {
 			httpapi.WriteError(w, http.StatusUnauthorized, "invalid or expired link")
 			return
 		}
@@ -276,35 +284,54 @@ func (a *Service) SignOut(w http.ResponseWriter, r *http.Request) {
 	httpapi.WriteJSON(w, http.StatusOK, map[string]string{"message": "signed out"})
 }
 
-func (a *Service) authenticatedUser(w http.ResponseWriter, r *http.Request) (string, bool) {
+func (a *Service) authenticatedAccount(w http.ResponseWriter, r *http.Request) (string, bool, bool) {
 	httpapi.PreventCaching(w)
 	cookie, err := r.Cookie("tennisconnect_session")
 	if err != nil || !validAuthToken(cookie.Value) {
 		httpapi.WriteError(w, http.StatusUnauthorized, "unauthorized")
-		return "", false
+		return "", false, false
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 	defer cancel()
 	hash := sha256.Sum256([]byte(cookie.Value))
 	var userID string
+	var bannedAt sql.NullTime
 	err = a.DB.QueryRowContext(ctx, `
-		SELECT u.id FROM sessions s
+		SELECT u.id, u.banned_at FROM sessions s
 		JOIN users u ON u.id = s.user_id
-		WHERE s.token_hash = $1 AND s.expires_at > now() AND u.deleted_at IS NULL`, hash[:]).Scan(&userID)
+		WHERE s.token_hash = $1 AND s.expires_at > now() AND u.deleted_at IS NULL`, hash[:]).Scan(&userID, &bannedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.WriteError(w, http.StatusUnauthorized, "unauthorized")
-		return "", false
+		return "", false, false
 	}
 	if err != nil {
 		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
-		return "", false
+		return "", false, false
 	}
-	return userID, true
+	return userID, bannedAt.Valid, true
 }
 
+// RequireUser is the player boundary. Banned accounts keep a session only to
+// read and submit an appeal through RequireAccount.
 func (a *Service) RequireUser(next func(http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		userID, ok := a.authenticatedUser(w, r)
+		userID, banned, ok := a.authenticatedAccount(w, r)
+		if !ok {
+			return
+		}
+		if banned {
+			httpapi.WriteError(w, http.StatusForbidden, "account suspended")
+			return
+		}
+		next(w, r, userID)
+	}
+}
+
+// RequireAccount authenticates a live session without granting player APIs to
+// banned accounts. Appeal handlers use it; every player route uses RequireUser.
+func (a *Service) RequireAccount(next func(http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userID, _, ok := a.authenticatedAccount(w, r)
 		if !ok {
 			return
 		}
@@ -313,7 +340,12 @@ func (a *Service) RequireUser(next func(http.ResponseWriter, *http.Request, stri
 }
 
 func (a *Service) Session(w http.ResponseWriter, r *http.Request) {
-	if _, ok := a.authenticatedUser(w, r); !ok {
+	_, banned, ok := a.authenticatedAccount(w, r)
+	if !ok {
+		return
+	}
+	if banned {
+		httpapi.WriteError(w, http.StatusForbidden, "account suspended")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

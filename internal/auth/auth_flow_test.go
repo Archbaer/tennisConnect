@@ -2,6 +2,7 @@ package auth
 
 import (
 	"crypto/sha256"
+	"database/sql"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -212,10 +213,30 @@ func TestVerifyRejectsExpiredToken(t *testing.T) {
 	}
 }
 
-func TestVerifyRejectsDeletedUser(t *testing.T) {
+func TestVerifyRecoversRecentlyDeletedUser(t *testing.T) {
 	auth, emails := newTestAuth(t)
 	userID := insertTestUser(t, auth, "player@example.com")
-	if _, err := testutil.DB.Exec("UPDATE users SET deleted_at = now() WHERE id = $1", userID); err != nil {
+	if _, err := testutil.DB.Exec("UPDATE users SET deleted_at = now() - interval '1 day' WHERE id = $1", userID); err != nil {
+		t.Fatal(err)
+	}
+	token := requestMagicToken(t, auth, emails, "player@example.com")
+	response := verifyTokenRequest(auth, token)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", response.Code, response.Body.String())
+	}
+	var deletedAt sql.NullTime
+	if err := testutil.DB.QueryRow("SELECT deleted_at FROM users WHERE id = $1", userID).Scan(&deletedAt); err != nil {
+		t.Fatal(err)
+	}
+	if deletedAt.Valid {
+		t.Fatal("recovery did not clear deleted_at")
+	}
+}
+
+func TestVerifyRejectsDeletedUserAfterRecoveryWindow(t *testing.T) {
+	auth, emails := newTestAuth(t)
+	userID := insertTestUser(t, auth, "player@example.com")
+	if _, err := testutil.DB.Exec("UPDATE users SET deleted_at = now() - interval '31 days' WHERE id = $1", userID); err != nil {
 		t.Fatal(err)
 	}
 	token := requestMagicToken(t, auth, emails, "player@example.com")
@@ -224,7 +245,7 @@ func TestVerifyRejectsDeletedUser(t *testing.T) {
 		t.Fatalf("status = %d, want 401", response.Code)
 	}
 	if got := countAuthRows(t, "sessions"); got != 0 {
-		t.Fatal("deleted user created session")
+		t.Fatal("expired deletion created session")
 	}
 }
 
