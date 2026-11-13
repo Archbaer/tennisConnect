@@ -11,15 +11,18 @@ import (
 	"strings"
 	"testing"
 
+	"tennisconnect/internal/account"
 	"tennisconnect/internal/auth"
 	"tennisconnect/internal/discovery"
 	"tennisconnect/internal/location"
 	"tennisconnect/internal/matches"
 	"tennisconnect/internal/photos"
+	"tennisconnect/internal/reviewer"
+	"tennisconnect/internal/safety"
 	"tennisconnect/internal/testutil"
 )
 
-func newTestServices(t *testing.T) (*auth.Service, *photos.Service, *location.Service, *discovery.Service, *matches.Service) {
+func newTestServices(t *testing.T) (*auth.Service, *photos.Service, *location.Service, *discovery.Service, *matches.Service, *safety.Service, *account.Service, *reviewer.Service) {
 	t.Helper()
 	testutil.ResetTables(t)
 	authSvc := &auth.Service{
@@ -33,7 +36,10 @@ func newTestServices(t *testing.T) (*auth.Service, *photos.Service, *location.Se
 		&photos.Service{DB: testutil.DB, AppBaseURL: "http://localhost:8080"},
 		&location.Service{DB: testutil.DB, AppBaseURL: "http://localhost:8080"},
 		&discovery.Service{DB: testutil.DB},
-		&matches.Service{DB: testutil.DB, AppBaseURL: "http://localhost:8080"}
+		&matches.Service{DB: testutil.DB, AppBaseURL: "http://localhost:8080"},
+		&safety.Service{DB: testutil.DB, AppBaseURL: "http://localhost:8080", HMACKey: bytes.Repeat([]byte{2}, 32)},
+		&account.Service{DB: testutil.DB, AppBaseURL: "http://localhost:8080"},
+		&reviewer.Service{DB: testutil.DB, AppBaseURL: "http://localhost:8080", EmailEncryptionKey: bytes.Repeat([]byte{1}, 32), EmailHMACKey: bytes.Repeat([]byte{2}, 32), SendMagicLink: func(context.Context, string, string) error { return nil }}
 }
 
 func insertTestSession(t *testing.T, userID string) *http.Cookie {
@@ -56,8 +62,8 @@ func authenticatedRequest(t *testing.T, method, path, body string, cookie *http.
 }
 
 func TestMuxRoutesAuthEndpoints(t *testing.T) {
-	authSvc, photoSvc, locationSvc, discoverySvc, matchSvc := newTestServices(t)
-	handler := NewMux(authSvc, photoSvc, locationSvc, discoverySvc, matchSvc, testutil.DB.PingContext)
+	authSvc, photoSvc, locationSvc, discoverySvc, matchSvc, safetySvc, accountSvc, reviewerSvc := newTestServices(t)
+	handler := NewMux(authSvc, photoSvc, locationSvc, discoverySvc, matchSvc, safetySvc, accountSvc, reviewerSvc, testutil.DB.PingContext)
 	tests := []struct {
 		name        string
 		method      string
@@ -85,6 +91,16 @@ func TestMuxRoutesAuthEndpoints(t *testing.T) {
 		{name: "match detail unauthorized", method: http.MethodGet, path: "/api/v1/matches/00000000-0000-4000-8000-000000000000", want: http.StatusUnauthorized},
 		{name: "match instagram unauthorized", method: http.MethodGet, path: "/api/v1/matches/00000000-0000-4000-8000-000000000000/instagram", want: http.StatusUnauthorized},
 		{name: "block unauthorized", method: http.MethodPost, path: "/api/v1/blocks", body: `{}`, contentType: "application/json", want: http.StatusUnauthorized},
+		{name: "report unauthorized", method: http.MethodPost, path: "/api/v1/reports", body: `{}`, contentType: "application/json", want: http.StatusUnauthorized},
+		{name: "delete account unauthorized", method: http.MethodDelete, path: "/api/v1/account", want: http.StatusUnauthorized},
+		{name: "export unauthorized", method: http.MethodGet, path: "/api/v1/account/export", want: http.StatusUnauthorized},
+		{name: "appeal unauthorized", method: http.MethodGet, path: "/api/v1/account/appeal", want: http.StatusUnauthorized},
+		{name: "reviewer list unauthorized", method: http.MethodGet, path: "/api/v1/reviewer/reports", want: http.StatusUnauthorized},
+		{name: "reviewer detail unauthorized", method: http.MethodGet, path: "/api/v1/reviewer/reports/00000000-0000-4000-8000-000000000000", want: http.StatusUnauthorized},
+		{name: "reviewer dismiss unauthorized", method: http.MethodPost, path: "/api/v1/reviewer/reports/00000000-0000-4000-8000-000000000000/dismiss", want: http.StatusUnauthorized},
+		{name: "reviewer ban unauthorized", method: http.MethodPost, path: "/api/v1/reviewer/reports/00000000-0000-4000-8000-000000000000/ban", want: http.StatusUnauthorized},
+		{name: "reviewer enroll unauthorized", method: http.MethodPost, path: "/api/v1/reviewer/mfa/enroll", want: http.StatusUnauthorized},
+		{name: "reviewer mfa unauthorized", method: http.MethodPost, path: "/api/v1/reviewer/mfa/verify", body: `{}`, contentType: "application/json", want: http.StatusUnauthorized},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -104,7 +120,7 @@ func TestMuxRoutesAuthEndpoints(t *testing.T) {
 
 func TestNoPublicRouteServesPhotoObjects(t *testing.T) {
 	authSvc := &auth.Service{DB: testutil.DB, AppBaseURL: "http://localhost:8080"}
-	handler := NewMux(authSvc, &photos.Service{DB: testutil.DB}, &location.Service{DB: testutil.DB}, &discovery.Service{DB: testutil.DB}, &matches.Service{DB: testutil.DB}, func(context.Context) error { return nil })
+	handler := NewMux(authSvc, &photos.Service{DB: testutil.DB}, &location.Service{DB: testutil.DB}, &discovery.Service{DB: testutil.DB}, &matches.Service{DB: testutil.DB}, &safety.Service{DB: testutil.DB}, &account.Service{DB: testutil.DB}, &reviewer.Service{DB: testutil.DB}, func(context.Context) error { return nil })
 	for _, path := range []string{"/api/v1/photos/00000000-0000-4000-8000-000000000000", "/api/v1/photos/00000000-0000-4000-8000-000000000000/process"} {
 		request := httptest.NewRequest(http.MethodGet, path, nil)
 		response := httptest.NewRecorder()
@@ -119,8 +135,8 @@ func TestNoPublicRouteServesPhotoObjects(t *testing.T) {
 }
 
 func TestLocationRoutesRequireSession(t *testing.T) {
-	authSvc, photoSvc, locationSvc, discoverySvc, matchSvc := newTestServices(t)
-	handler := NewMux(authSvc, photoSvc, locationSvc, discoverySvc, matchSvc, testutil.DB.PingContext)
+	authSvc, photoSvc, locationSvc, discoverySvc, matchSvc, safetySvc, accountSvc, reviewerSvc := newTestServices(t)
+	handler := NewMux(authSvc, photoSvc, locationSvc, discoverySvc, matchSvc, safetySvc, accountSvc, reviewerSvc, testutil.DB.PingContext)
 	userID := testutil.InsertUser(t, "routes@example.com")
 	cookie := insertTestSession(t, userID)
 
