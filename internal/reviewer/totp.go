@@ -13,6 +13,7 @@ import (
 	"encoding/base32"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -90,7 +91,7 @@ func totpCode(secret string, step int64) (string, error) {
 		uint32(sum[offset+1])<<16 |
 		uint32(sum[offset+2])<<8 |
 		uint32(sum[offset+3])
-	return strconv.FormatUint(uint64(value%1_000_000), 10), nil
+	return fmt.Sprintf("%06d", value%1_000_000), nil
 }
 
 // validateTOTP accepts the current step and one step either side. It returns
