@@ -2,6 +2,7 @@
 !README.md
 !docs/design/*.md
 !docs/ci.md
+!docs/security.md
 .env
 .claude/
 .archify/

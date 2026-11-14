@@ -56,6 +56,20 @@ docker compose up -d --force-recreate database
 docker compose exec -T database psql --single-transaction --set=ON_ERROR_STOP=1 -U tennisconnect -d tennisconnect -f /docker-entrypoint-initdb.d/000005_locations.sql
 ```
 
+For a database upgrading from the locations phase, apply the matches migration once:
+
+```sh
+docker compose up -d --force-recreate database
+docker compose exec -T database psql --single-transaction --set=ON_ERROR_STOP=1 -U tennisconnect -d tennisconnect -f /docker-entrypoint-initdb.d/000006_matches.sql
+```
+
+For a database upgrading from the matches phase, apply the safety migration once:
+
+```sh
+docker compose up -d --force-recreate database
+docker compose exec -T database psql --single-transaction --set=ON_ERROR_STOP=1 -U tennisconnect -d tennisconnect -f /docker-entrypoint-initdb.d/000007_safety.sql
+```
+
 Create local configuration once. Keep the generated keys stable: replacing them makes existing account lookups and encrypted data unreadable.
 
 ```sh
@@ -175,6 +189,27 @@ Discovery excludes, server-side and in the same repeatable-read query: the viewe
 `GET /api/v1/matches` returns `{"matches":[{match_id, display_name, matched_at, has_instagram, photo_urls[]}]}`, newest first. `GET /api/v1/matches/{id}` returns the same row for one match. Both are member-only (404 otherwise) and never carry the handle; `photo_urls[]` holds at most three five-minute signed URLs for the other player's approved photos only. A matched pair with a soft-deleted account is hidden entirely (404). Signed URLs issued before a block keep working until they expire — blocking stops *new* issuance immediately, it does not revoke URLs already handed out. `GET /api/v1/matches/{id}/instagram` is the only disclosure path and returns `{"instagram_handle": "..."}` — empty when the other player has none.
 
 `POST /api/v1/blocks` `{target_id}` is idempotent and returns 204. Blocking hides the pair in both directions in discovery, closes the match for both members (the match list and detail 404), and revokes handle and photo access immediately.
+
+## Safety and account API
+
+Reports are the only player-facing safety input. `POST /api/v1/reports` accepts `{"target_id":"...","category":"fake_profile"|"inappropriate_photos"|"harassment"|"contact_details"|"underage"|"other","details":"optional, max 500"}` and returns `201 {"report_id","status":"open"}`. A second open report for the same pair returns 409. Self-reports and unknown, deleted, or banned targets are rejected. Each player may submit five reports per hour; excess requests return 429 with `Retry-After`. Reporter identity is never returned to the target or in the reviewer queue.
+
+A report carries a 72-hour review due time. The queue is reviewer-only:
+
+- `GET /api/v1/reviewer/reports?status=open|dismissed|banned|all` returns at most 100 reports, oldest due first, with target display name, category, details, status and an `overdue` boolean.
+- `GET /api/v1/reviewer/reports/{id}` returns one report.
+- `POST /api/v1/reviewer/reports/{id}/dismiss` closes the report.
+- `POST /api/v1/reviewer/reports/{id}/ban` permanently bans the target, revokes every session, and closes the report.
+
+Reviews are append-only in `report_events`. A reviewed report cannot be reviewed again (409).
+
+Reviewer accounts are separate from players. Create one with `go run ./cmd/reviewer -email reviewer@example.com` after loading the same `DATABASE_URL`, `EMAIL_ENCRYPTION_KEY` and `EMAIL_HMAC_KEY` as the API. Reviewers sign in through `POST /api/v1/reviewer/auth/link`, `GET /reviewer/verify`, and `POST /api/v1/reviewer/auth/verify`; that session can only enroll TOTP through `POST /api/v1/reviewer/mfa/enroll` and confirm/elevate through `POST /api/v1/reviewer/mfa/verify`. TOTP secrets are encrypted at rest, codes are single-use, and five attempts per minute are allowed. Reviewer sessions last eight hours and use `SameSite=Strict`. Passkeys are deferred; TOTP is the V1 second factor.
+
+A ban is durable: the account disappears from discovery and matches, existing sessions stop working, and the e-mail cannot register again. The banned player can still request a magic link and receives a restricted session that can read `GET /api/v1/account/appeal` and submit one `POST /api/v1/account/appeal` with `{"body":"..."}` inside 14 days of the ban. A second appeal returns 409; a late appeal returns 403. V1 has no unban endpoint.
+
+`DELETE /api/v1/account` hides the account immediately, revokes sessions, and returns `{"recover_until":"..."}`. Signing in during the 30-day window restores the account. After 30 days the hourly cleanup hard-deletes the user row; PostgreSQL cascades remove profiles, photos rows, reactions, matches and reports. A bucket lifecycle rule must remove orphaned `photos/` objects. A banned or deleted account cannot use player endpoints.
+
+`GET /api/v1/account/export` is an authenticated JSON attachment containing the owner's profile, play times, photo metadata, reactions, matches and reports they made. It excludes e-mail, date of birth, coordinates, other players' Instagram handles, signed URLs, object keys and reports other people made. Exports and every safety response are `Cache-Control: no-store`.
 
 ### Performance and load gate
 

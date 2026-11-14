@@ -1,0 +1,101 @@
+# Security model
+
+This file records the trust boundaries, authorization rules and accepted risks
+that the safety and account work added. Keep it current when a new private field,
+route or background action appears.
+
+## Trust boundaries
+
+- The Go API is the only authority for identity, eligibility, matching,
+  moderation, bans, deletion and private-field disclosure.
+- PostgreSQL/PostGIS is the source of truth. Exact coordinates, e-mail addresses,
+  date of birth and photo object keys never leave the server.
+- Resend receives a magic-link recipient address at send time. S3 receives the
+  sanitized photo and issues short-lived presigned URLs. Sightengine receives the
+  sanitized photo. Mapbox receives the typed or browser area at write time.
+- Reviewers are a separate identity in `reviewers`. They do not hold player
+  profiles and cannot call player routes with a reviewer cookie.
+- The future frontend is untrusted for authorization. It may show or hide a
+  control, but the API must enforce the same rule.
+
+## Authentication and session rules
+
+- Player sessions are SHA-256 token hashes; cookies are `HttpOnly`,
+  `SameSite=Lax`, and `Secure` outside local HTTP.
+- Reviewer sessions are hashed, `HttpOnly`, `SameSite=Strict`, eight hours, and
+  are kept in a separate cookie. Review routes also require a TOTP-elevated
+  session.
+- TOTP secrets are AES-GCM encrypted with a key derived from
+  `EMAIL_ENCRYPTION_KEY` under the `reviewer-totp-key-v1` label. Codes are
+  30 seconds, six digits, ±1 step, constant-time compared, single-use, and
+  limited to five attempts per minute.
+- Banned players cannot use player routes. They keep a restricted session only
+  for the 14-day appeal endpoints. Deleted players lose all sessions.
+- Sign-out and bans revoke the server-side session hash; an HttpOnly cookie
+  alone is never authentication.
+
+## Authorization matrix
+
+| Route family | Anonymous | Player | Banned player | Reviewer without MFA | Reviewer with MFA |
+| --- | --- | --- | --- | --- | --- |
+| Auth link/verify | allowed | allowed | allowed | n/a | n/a |
+| Profile, photos, location, discovery, reactions, matches, blocks | 401 | own data | 403 | n/a | n/a |
+| `POST /api/v1/reports` | 401 | allowed, rate-limited | 403 | n/a | n/a |
+| `DELETE /api/v1/account`, `GET /api/v1/account/export` | 401 | own account | 403 | n/a | n/a |
+| `GET/POST /api/v1/account/appeal` | 401 | 404, no suspension | allowed, one 14-day appeal | n/a | n/a |
+| Reviewer auth, enroll, verify | link/verify allowed | n/a | n/a | session only | session only |
+| Reviewer report queue/actions | 401 | 401 | 401 | 403 | allowed |
+
+## Private fields
+
+Never return or log: e-mail, date of birth, exact coordinates, postcodes,
+Instagram handles outside a live match, raw object keys, provider credentials,
+TOTP secrets or codes, report details to a target, reporter identity to a
+reviewer, report counts, ban status of another player, or signed URLs after
+their five-minute lifetime.
+
+## Report and ban invariants
+
+- One open report per reporter-target pair.
+- A report is reviewed once; dismissal and ban write an append-only
+  `report_events` row.
+- A ban is permanent in V1, sets `users.banned_at`, revokes sessions, deletes
+  live matches, and removes the account from discovery, match and Instagram
+  reads.
+- Same-e-mail registration is rejected for a banned row even after deletion
+  cleanup.
+- A ban and a simultaneous report/decision are serialised by the report row
+  lock and the session delete.
+
+## Deletion and export
+
+- Deletion is immediate hiding plus a 30-day recovery boundary. Sign-in within
+  the window clears `deleted_at`; after it the hourly cleanup removes the row.
+- Cascades remove database rows. The documented S3 lifecycle rule removes
+  orphaned objects; the API does not enumerate S3 objects.
+- Export is owner-only, repeatable-read, and excludes other players' private
+  data. It never contains e-mail, DOB, coordinates, object keys or signed URLs.
+- Backups may retain deleted data for the provider's retention window. The
+  documented launch requirement is a 30-day PITR policy.
+
+## Accepted risks
+
+- Signed URLs issued before a ban, block or deletion remain valid until their
+  five-minute expiry. Revocation would require a proxy or much shorter TTL.
+- TOTP is the V1 reviewer second factor. Passkeys resist phishing better and are
+  deferred until a reviewer UI exists.
+- The 72-hour review target is a due timestamp and queue sort, not an automatic
+  enforcement worker. Overdue reports stay visible.
+- Reviewer bans have no unban or appeal-decision endpoint in V1; appeals are
+  stored for a later manual process.
+- Production dense-city load and the one-hour 50 RPS soak remain unproven. The
+  committed load gate is local and environment-gated.
+- CD is deferred; `main` deploys nothing automatically.
+
+## Verification before merge
+
+- `go test -race -count=2 -shuffle=on ./...` against the PostGIS test database.
+- `go vet ./...`, `gofmt`, `go mod verify`, `go mod tidy -diff`.
+- `govulncheck ./...` and `gitleaks detect --source .`.
+- Route matrix above exercised by tests, including IDOR and cross-user reads.
+- No new secret, raw e-mail, coordinate or report detail in logs.
