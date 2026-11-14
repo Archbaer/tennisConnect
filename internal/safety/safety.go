@@ -350,7 +350,7 @@ func validUUID(value string) bool {
 				return false
 			}
 		default:
-			if !((ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f')) {
+			if (ch < '0' || ch > '9') && (ch < 'a' || ch > 'f') {
 				return false
 			}
 		}
