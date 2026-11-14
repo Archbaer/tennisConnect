@@ -185,3 +185,16 @@ func TestReviewerOriginsAreChecked(t *testing.T) {
 		t.Fatalf("status = %d, want 403", response.Code)
 	}
 }
+
+func TestTOTPCodesAreSixDigits(t *testing.T) {
+	const secret = "JBSWY3DPEHPK3PXP"
+	for step := int64(0); step < 500; step++ {
+		code, err := totpCode(secret, step)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(code) != 6 {
+			t.Fatalf("step %d code = %q, want six digits", step, code)
+		}
+	}
+}
