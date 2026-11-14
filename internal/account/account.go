@@ -270,13 +270,16 @@ func (s *Service) Export(w http.ResponseWriter, r *http.Request, userID string) 
 	for rows.Next() {
 		var slot exportAvailability
 		if err := rows.Scan(&slot.Weekday, &slot.Start, &slot.End); err != nil {
-			rows.Close()
+			_ = rows.Close()
 			httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
 			return
 		}
 		availability = append(availability, slot)
 	}
-	rows.Close()
+	if err := rows.Close(); err != nil {
+		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+		return
+	}
 	if err := rows.Err(); err != nil {
 		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
 		return
@@ -294,13 +297,16 @@ func (s *Service) Export(w http.ResponseWriter, r *http.Request, userID string) 
 	for rows.Next() {
 		var photo exportPhoto
 		if err := rows.Scan(&photo.PhotoID, &photo.DisplayOrder, &photo.Status, &photo.CreatedAt); err != nil {
-			rows.Close()
+			_ = rows.Close()
 			httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
 			return
 		}
 		photos = append(photos, photo)
 	}
-	rows.Close()
+	if err := rows.Close(); err != nil {
+		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+		return
+	}
 	if err := rows.Err(); err != nil {
 		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
 		return
@@ -319,13 +325,16 @@ func (s *Service) Export(w http.ResponseWriter, r *http.Request, userID string) 
 	for rows.Next() {
 		var reaction exportReaction
 		if err := rows.Scan(&reaction.DisplayName, &reaction.Action, &reaction.CreatedAt); err != nil {
-			rows.Close()
+			_ = rows.Close()
 			httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
 			return
 		}
 		reactions = append(reactions, reaction)
 	}
-	rows.Close()
+	if err := rows.Close(); err != nil {
+		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+		return
+	}
 	if err := rows.Err(); err != nil {
 		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
 		return
@@ -346,13 +355,16 @@ func (s *Service) Export(w http.ResponseWriter, r *http.Request, userID string) 
 	for rows.Next() {
 		var match exportMatch
 		if err := rows.Scan(&match.MatchID, &match.DisplayName, &match.MatchedAt, &match.HasInstagram); err != nil {
-			rows.Close()
+			_ = rows.Close()
 			httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
 			return
 		}
 		matches = append(matches, match)
 	}
-	rows.Close()
+	if err := rows.Close(); err != nil {
+		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+		return
+	}
 	if err := rows.Err(); err != nil {
 		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
 		return
@@ -371,13 +383,16 @@ func (s *Service) Export(w http.ResponseWriter, r *http.Request, userID string) 
 	for rows.Next() {
 		var report exportReport
 		if err := rows.Scan(&report.ReportID, &report.DisplayName, &report.Category, &report.Status, &report.CreatedAt); err != nil {
-			rows.Close()
+			_ = rows.Close()
 			httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
 			return
 		}
 		reports = append(reports, report)
 	}
-	rows.Close()
+	if err := rows.Close(); err != nil {
+		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+		return
+	}
 	if err := rows.Err(); err != nil {
 		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
 		return

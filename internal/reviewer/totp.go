@@ -6,7 +6,7 @@ import (
 	"crypto/cipher"
 	"crypto/hmac"
 	"crypto/rand"
-	"crypto/sha1"
+	"crypto/sha1" //nolint:gosec // RFC 6238 TOTP is HMAC-SHA1
 	"crypto/sha256"
 	"crypto/subtle"
 	"database/sql"
