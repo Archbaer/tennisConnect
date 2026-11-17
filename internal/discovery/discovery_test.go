@@ -256,6 +256,7 @@ func (f *fakePresigner) recordedCalls() []presignCall {
 
 type card struct {
 	Player struct {
+		PlayerID      string   `json:"player_id"`
 		DisplayName   string   `json:"display_name"`
 		Age           int      `json:"age"`
 		Gender        string   `json:"gender"`
@@ -975,6 +976,9 @@ func TestDiscoveryPhotoURLs(t *testing.T) {
 		t.Fatalf("status = %d", response.Code)
 	}
 	card := cardByName(t, page, "photographer")
+	if card.Player.PlayerID != candidateID {
+		t.Fatalf("player_id = %q, want %q", card.Player.PlayerID, candidateID)
+	}
 	if len(card.Player.PhotoURLs) != 3 {
 		t.Fatalf("photo URLs = %d, want 3", len(card.Player.PhotoURLs))
 	}
@@ -990,7 +994,7 @@ func TestDiscoveryPhotoURLs(t *testing.T) {
 			t.Fatalf("presign key[%d] = %q, want %q", index, call.key, want)
 		}
 	}
-	for _, forbidden := range []string{candidateID, "private-bucket"} {
+	for _, forbidden := range []string{"private-bucket"} {
 		if strings.Contains(response.Body.String(), forbidden) {
 			t.Fatalf("response exposed %q: %s", forbidden, response.Body.String())
 		}

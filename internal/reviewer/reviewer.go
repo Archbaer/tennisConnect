@@ -33,6 +33,7 @@ var verifyPage = template.Must(template.New("verify").Parse(`<!doctype html>
 <body><main><h1>Reviewer sign in</h1>
 <form method="post" action="/api/v1/reviewer/auth/verify">
 <input type="hidden" name="token" value="{{.Token}}">
+<input type="hidden" name="redirect" value="/reviewer">
 <button type="submit">Continue</button>
 </form></main></body></html>`))
 
@@ -250,6 +251,10 @@ func (s *Service) VerifyLink(w http.ResponseWriter, r *http.Request) {
 		Secure:   s.CookieSecure,
 		SameSite: http.SameSiteStrictMode,
 	})
+	if r.PostForm.Get("redirect") == "/reviewer" {
+		http.Redirect(w, r, "/reviewer", http.StatusSeeOther)
+		return
+	}
 	httpapi.WriteJSON(w, http.StatusOK, map[string]string{"message": "verify mfa"})
 }
 

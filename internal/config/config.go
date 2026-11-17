@@ -26,6 +26,7 @@ type Config struct {
 	SightengineUser    string
 	SightengineSecret  string
 	MapboxAccessToken  string
+	WebDir             string
 }
 
 func Load() (Config, error) {
@@ -65,6 +66,7 @@ func Load() (Config, error) {
 	cfg.SightengineUser = moderationUser
 	cfg.SightengineSecret = moderationSecret
 	cfg.MapboxAccessToken = strings.TrimSpace(os.Getenv("MAPBOX_ACCESS_TOKEN"))
+	cfg.WebDir = strings.TrimSpace(os.Getenv("WEB_DIR"))
 	return cfg, nil
 }
 
