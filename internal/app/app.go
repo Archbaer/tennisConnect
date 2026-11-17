@@ -154,9 +154,16 @@ func Run() error {
 		TrustProxy:         cfg.TrustProxy,
 		SendMagicLink:      mailer,
 	}
+	if err := validateWebDir(cfg.WebDir); err != nil {
+		return err
+	}
+	mux := NewMux(authSvc, photoSvc, locationSvc, discoverySvc, matchSvc, safetySvc, accountSvc, reviewerSvc, db.PingContext)
+	if cfg.WebDir != "" {
+		mux.Handle("/", spaHandler(cfg.WebDir))
+	}
 	server := &http.Server{
 		Addr:              cfg.Address,
-		Handler:           NewMux(authSvc, photoSvc, locationSvc, discoverySvc, matchSvc, safetySvc, accountSvc, reviewerSvc, db.PingContext),
+		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      10 * time.Second,

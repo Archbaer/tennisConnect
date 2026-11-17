@@ -62,6 +62,7 @@ type matchRow struct {
 
 type matchListRow struct {
 	MatchID      string    `json:"match_id"`
+	PlayerID     string    `json:"player_id"`
 	DisplayName  string    `json:"display_name"`
 	MatchedAt    time.Time `json:"matched_at"`
 	HasInstagram bool      `json:"has_instagram"`
@@ -74,6 +75,7 @@ type matchListResponse struct {
 
 type matchDetailResponse struct {
 	MatchID      string    `json:"match_id"`
+	PlayerID     string    `json:"player_id"`
 	DisplayName  string    `json:"display_name"`
 	MatchedAt    time.Time `json:"matched_at"`
 	HasInstagram bool      `json:"has_instagram"`
@@ -270,6 +272,7 @@ func (s *Service) List(w http.ResponseWriter, r *http.Request, userID string) {
 		}
 		items = append(items, matchListRow{
 			MatchID:      match.MatchID,
+			PlayerID:     match.OtherID,
 			DisplayName:  match.DisplayName,
 			MatchedAt:    match.MatchedAt,
 			HasInstagram: match.HasInstagram,
@@ -320,6 +323,7 @@ func (s *Service) Detail(w http.ResponseWriter, r *http.Request, userID string) 
 	}
 	httpapi.WriteJSON(w, http.StatusOK, matchDetailResponse{
 		MatchID:      match.MatchID,
+		PlayerID:     match.OtherID,
 		DisplayName:  match.DisplayName,
 		MatchedAt:    match.MatchedAt,
 		HasInstagram: match.HasInstagram,

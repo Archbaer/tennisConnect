@@ -192,6 +192,7 @@ type photoRow struct {
 }
 
 type playerCard struct {
+	PlayerID      string   `json:"player_id"`
 	DisplayName   string   `json:"display_name"`
 	Age           int      `json:"age"`
 	Gender        string   `json:"gender"`
@@ -301,6 +302,7 @@ func (s *Service) Get(w http.ResponseWriter, r *http.Request, userID string) {
 			photoURLs = []string{}
 		}
 		cards = append(cards, cardResponse{Player: playerCard{
+			PlayerID:      candidate.userID,
 			DisplayName:   candidate.displayName,
 			Age:           ageAt(candidate.birthDate, time.Now().UTC()),
 			Gender:        candidate.gender,
