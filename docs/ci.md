@@ -25,6 +25,7 @@ All jobs are required status checks on `main` (see ruleset below). Every job has
 | `lint` | Issues `go vet` does not report: unchecked `rows.Err` (`rowserrcheck`), leaked HTTP bodies (`bodyclose`), unused code (`unused`), dead assignments (`ineffassign`), staticcheck's semantic checks, `gosec` security rules, spellings. Also gates `go mod tidy -diff` drift and whitespace errors. |
 | `build` | Platform-specific breakage. Cross-compiles `linux/amd64`, `linux/arm64`, `darwin/amd64`, `darwin/arm64`. A matrix is deliberately avoided so there is one stable check name and one module cache. |
 | `test-nodb` | Accidental hard dependency on a live database. Runs the suite with `TEST_DATABASE_URL` unset — DB tests must skip, not fail. |
+| `web` | Frontend type/Svelte checks, Vitest, static build, Playwright Chromium flow and axe checks. |
 | `migrations` | Broken or non-repeatable SQL. Applies every `migrations/*.sql` in filename order to a freshly dropped schema, twice, and asserts the expected tables plus PostGIS exist. |
 | `security` | Reachable vulnerabilities in the module graph and standard library (`govulncheck`) and committed secrets (`gitleaks`). |
 
@@ -110,6 +111,7 @@ TEST_DATABASE_URL='postgres://tennisconnect:local-development-only@localhost:543
 golangci-lint run --config .github/golangci.yml ./...
 gitleaks detect --source .                   # full history locally
 govulncheck ./...
+(cd web && npm ci && npm run check && npm run test && npm run build && npx playwright install chromium && npm run test:e2e)
 ```
 
 `golangci-lint` must be v2 (the config uses the `version: "2"` schema). Always
@@ -136,7 +138,7 @@ which legacy protection does not.
 | Required approvals | **0** (single maintainer; self-approval is impossible — see below) |
 | Dismiss stale approvals on push | yes |
 | Require conversation resolution | yes |
-| Required status checks | `verify`, `lint`, `build`, `test-nodb`, `migrations`, `security`, `dependency-review` — all must be up to date with `main` before merging |
+| Required status checks | `verify`, `lint`, `build`, `test-nodb`, `web`, `migrations`, `security`, `dependency-review` — all must be up to date with `main` before merging |
 | Require linear history | yes (no merge commits) |
 | Allowed merge methods | **rebase only** — squash and merge-commit are disabled at the repository level too |
 | Block force pushes | yes |
@@ -160,8 +162,8 @@ Setting the count to 0 keeps everything that protects `main` and drops only the
 human gate. Still enforced today:
 
 - changes must arrive through a pull request — no direct pushes to `main`
-- all seven required status checks must pass (`verify`, `lint`, `build`,
-  `test-nodb`, `migrations`, `security`, `dependency-review`)
+- all eight required status checks must pass (`verify`, `lint`, `build`,
+  `test-nodb`, `web`, `migrations`, `security`, `dependency-review`)
 - required checks must be up to date with `main` (`strict` policy)
 - linear history; no merge commits
 - no force-pushes and no branch deletion

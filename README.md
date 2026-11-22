@@ -108,6 +108,23 @@ Check database-backed health:
 curl --fail http://localhost:8080/healthz
 ```
 
+## Frontend
+
+The SvelteKit app lives in `web/`. It is a static build served by the Go API so cookies stay same-origin.
+
+```sh
+cd web
+npm ci
+npm run dev        # http://localhost:5173, proxies /api, /auth and /reviewer to :8080
+npm run check
+npm run test
+npm run build      # writes web/build
+cd ..
+WEB_DIR=web/build go run ./cmd/api
+```
+
+With `WEB_DIR` set, Go serves the built site at `/` and keeps `/api/`, `/auth/`, `/reviewer/` and `/healthz` untouched. Unknown API paths return 404, not the SPA. A missing `index.html` or an invalid directory fails startup. The app never stores tokens or other players' private data in browser storage.
+
 ## Authentication API
 
 1. `POST /api/v1/auth/link` with `{"email":"player@example.com"}` sends a sign-in link. Response is `{"message":"check your email"}` for both known and new addresses. Invalid input returns 400, rate limits return 429 with `Retry-After`, and provider/database failures return 503.
@@ -172,7 +189,7 @@ All location endpoints require a session and return `Cache-Control: no-store` wi
 
 ## Discovery API
 
-`GET /api/v1/discovery?radius=10&limit=20&cursor=...` returns `200 {"cards":[{"player":{...}}],"next_cursor":null}`. Each card is `{display_name, age, gender, skill_level, bio, play_summary, photo_urls[], distance_miles}`. `age` is server-computed from the date of birth; `ranking` is deliberately absent from cards (Q3). `distance_miles` is an integer: `0` means under one mile, otherwise the value is rounded up to the next whole mile. The client maps `0` to "Under 1 mile" and `n` to "n miles".
+`GET /api/v1/discovery?radius=10&limit=20&cursor=...` returns `200 {"cards":[{"player":{...}}],"next_cursor":null}`. Each card is `{player_id, display_name, age, gender, skill_level, bio, play_summary, photo_urls[], distance_miles}`. `player_id` is the opaque UUID used by reaction and block requests; it reveals no location or distance. `age` is server-computed from the date of birth; `ranking` is deliberately absent from cards (Q3). `distance_miles` is an integer: `0` means under one mile, otherwise the value is rounded up to the next whole mile. The client maps `0` to "Under 1 mile" and `n` to "n miles".
 
 - `radius` is 5–30 whole miles (default 10), converted server-side at 1609.344 metres per mile for `ST_DWithin`; the boundary is inclusive. `limit` is 20–50 (default 20).
 - `cursor` is an opaque unsigned base64url `<whole miles>:<uuid>:<radius>` keyset token. Malformed tokens, invalid UUIDs, miles outside `0..radius`, or a radius that differs from the request return 400. A forged cursor only moves the page window; exact distances never leave the server, so a cursor cannot triangulate another player.
@@ -186,7 +203,7 @@ Discovery excludes, server-side and in the same repeatable-read query: the viewe
 
 `POST /api/v1/reactions` `{target_id, action: "like"|"pass"}` returns `{"matched": bool, "match_id"?: uuid}`. A `pass` is permanent; repeating any reaction for the same target returns 409 and never overwrites the first verdict. Reciprocal likes create exactly one row in `matches` for the canonical `(user_low, user_high)` pair, so concurrent reciprocal likes cannot duplicate it. Reacting across a block in either direction returns 403.
 
-`GET /api/v1/matches` returns `{"matches":[{match_id, display_name, matched_at, has_instagram, photo_urls[]}]}`, newest first. `GET /api/v1/matches/{id}` returns the same row for one match. Both are member-only (404 otherwise) and never carry the handle; `photo_urls[]` holds at most three five-minute signed URLs for the other player's approved photos only. A matched pair with a soft-deleted account is hidden entirely (404). Signed URLs issued before a block keep working until they expire — blocking stops *new* issuance immediately, it does not revoke URLs already handed out. `GET /api/v1/matches/{id}/instagram` is the only disclosure path and returns `{"instagram_handle": "..."}` — empty when the other player has none.
+`GET /api/v1/matches` returns `{"matches":[{match_id, player_id, display_name, matched_at, has_instagram, photo_urls[]}]}`, newest first. `GET /api/v1/matches/{id}` returns the same row for one match. `player_id` is the other player's opaque UUID for report and block requests. Both are member-only (404 otherwise) and never carry the handle; `photo_urls[]` holds at most three five-minute signed URLs for the other player's approved photos only. A matched pair with a soft-deleted account is hidden entirely (404). Signed URLs issued before a block keep working until they expire — blocking stops *new* issuance immediately, it does not revoke URLs already handed out. `GET /api/v1/matches/{id}/instagram` is the only disclosure path and returns `{"instagram_handle": "..."}` — empty when the other player has none.
 
 `POST /api/v1/blocks` `{target_id}` is idempotent and returns 204. Blocking hides the pair in both directions in discovery, closes the match for both members (the match list and detail 404), and revokes handle and photo access immediately.
 
