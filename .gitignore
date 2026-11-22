@@ -4,5 +4,10 @@
 !docs/ci.md
 !docs/security.md
 .env
+web/node_modules/
+web/.svelte-kit/
+web/build/
+web/test-results/
+web/playwright-report/
 .claude/
 .archify/
