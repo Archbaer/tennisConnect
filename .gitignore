@@ -5,6 +5,8 @@
 !docs/security.md
 !docs/deploy.md
 !docs/pentest-scope.md
+!docs/api.md
+!docs/local-development.md
 .env
 web/node_modules/
 web/.svelte-kit/

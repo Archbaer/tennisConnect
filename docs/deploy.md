@@ -15,7 +15,7 @@ docker build -t tennis-connect .
 ```
 
 The container needs a reachable PostgreSQL/PostGIS database at startup and the
-environment variables documented in `README.md`. `WEB_DIR` is already set to
+environment variables documented in `docs/local-development.md`. `WEB_DIR` is already set to
 `/app/web/build`; do not mount over it.
 
 ## Target shape
