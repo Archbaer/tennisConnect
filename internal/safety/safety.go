@@ -312,6 +312,13 @@ func (s *Service) decide(w http.ResponseWriter, r *http.Request, reviewerID stri
 			httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
 			return
 		}
+		// Close live matches for both members, like a block. Reads already hide
+		// banned targets, but deleting the rows keeps the closure explicit.
+		if _, err := tx.ExecContext(ctx, `
+			DELETE FROM matches WHERE user_low = $1 OR user_high = $1`, targetID); err != nil {
+			httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+			return
+		}
 	}
 	if _, err := tx.ExecContext(ctx, `
 		UPDATE reports SET status = $1, reviewer_id = $2, reviewed_at = now()
