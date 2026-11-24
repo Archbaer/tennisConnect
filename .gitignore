@@ -3,6 +3,7 @@
 !docs/design/*.md
 !docs/ci.md
 !docs/security.md
+!docs/deploy.md
 .env
 web/node_modules/
 web/.svelte-kit/
