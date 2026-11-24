@@ -72,7 +72,7 @@ flowchart LR
 | Whole-mile distance buckets | Prevents coordinate triangulation |
 | Presigned S3 uploads and reads | API never receives or serves raw image bytes |
 | Synchronous, fail-closed moderation | Provider failure never auto-approves |
-| Static SvelteKit served by Go | Same-origin cookies, no CORS layer |
+| Static SvelteKit + Bootstrap CSS served by Go | Same-origin cookies, no CORS layer, no CDN |
 | Separate reviewer identity + TOTP | No shared admin account; MFA on every review |
 | Rebase-only PRs, 8 required checks | Linear history, CI as the merge gate |
 
@@ -104,5 +104,6 @@ flowchart LR
 - [Security model](docs/security.md)
 - [Deployment](docs/deploy.md)
 - [Pentest scope](docs/pentest-scope.md)
+- [Court side theme](docs/design/court-side-theme.md)
 - [UX specification](docs/design/v1-ux-spec.md)
 - [CI and branch protection](docs/ci.md)

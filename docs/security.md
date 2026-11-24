@@ -81,7 +81,8 @@ their five-minute lifetime.
 ## Frontend
 
 - The SvelteKit app is static, same-origin with the API, and uses `credentials:
-  include`. It never reads or writes tokens, other players' private fields, or
+  include`. Bootstrap CSS and Bootstrap Icons are installed locally; no CDN,
+  Bootstrap JS or jQuery is loaded. It never reads or writes tokens, other players' private fields, or
   session data in `localStorage`/`sessionStorage`.
 - User content is rendered through Svelte text interpolation. There is no
   `{@html}` path for a profile, bio, report or message.
