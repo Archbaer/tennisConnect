@@ -11,5 +11,6 @@ web/.svelte-kit/
 web/build/
 web/test-results/
 web/playwright-report/
+web/e2e/.auth.json
 .claude/
 .archify/

@@ -90,8 +90,9 @@ their five-minute lifetime.
   paths stay 404 instead of returning `index.html`.
 - Authorization remains server-side. A hidden button is not a permission check;
   every mutation is re-authorized by the API.
-- Playwright covers the landing and discover flows plus serious/critical axe
-  checks. Mobile Safari and Android Chrome remain manual launch gates.
+- Playwright covers mocked empty/loading states, offline handling, denied
+  location permission and real-API authorization flows plus serious/critical
+  axe checks. Mobile Safari and Android Chrome remain manual launch gates.
 
 ## Deployment
 
@@ -129,7 +130,7 @@ their five-minute lifetime.
 - `gitleaks detect --source .`: 99 commits, no leaks.
 - `npm run check`: 0 errors, 0 warnings.
 - `npm run test`: 4 tests pass.
-- `npm run test:e2e`: 3 Chromium tests pass, including serious/critical axe.
+- `npm run test:e2e`: 10 Chromium tests pass, including real-API authorization flows and serious/critical axe.
 - `npm audit --omit=dev`: 0 vulnerabilities.
 - `docker build` plus container `/` and `/healthz` smoke test: 200.
 - Production load, iOS Safari, Android Chrome, PITR drills and public deployment
