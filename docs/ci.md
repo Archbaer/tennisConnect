@@ -25,7 +25,7 @@ All jobs are required status checks on `main` (see ruleset below). Every job has
 | `lint` | Issues `go vet` does not report: unchecked `rows.Err` (`rowserrcheck`), leaked HTTP bodies (`bodyclose`), unused code (`unused`), dead assignments (`ineffassign`), staticcheck's semantic checks, `gosec` security rules, spellings. Also gates `go mod tidy -diff` drift and whitespace errors. |
 | `build` | Platform-specific breakage. Cross-compiles `linux/amd64`, `linux/arm64`, `darwin/amd64`, `darwin/arm64`. A matrix is deliberately avoided so there is one stable check name and one module cache. |
 | `test-nodb` | Accidental hard dependency on a live database. Runs the suite with `TEST_DATABASE_URL` unset — DB tests must skip, not fail. |
-| `web` | Frontend type/Svelte checks, Vitest, static build, Playwright Chromium flow and axe checks. |
+| `web` | Frontend type/Svelte checks, Vitest, static build, and Playwright Chromium tests against the real Go API and PostGIS (offline, permission-denied, authorization flows, axe). |
 | `migrations` | Broken or non-repeatable SQL. Applies every `migrations/*.sql` in filename order to a freshly dropped schema, twice, and asserts the expected tables plus PostGIS exist. |
 | `security` | Reachable vulnerabilities in the module graph and standard library (`govulncheck`) and committed secrets (`gitleaks`). |
 
