@@ -132,3 +132,17 @@ export function formatDate(value: string): string {
     timeZone: 'Europe/London'
   }).format(new Date(value));
 }
+
+export function relativeDate(value: string): string {
+  const seconds = Math.round((new Date(value).getTime() - Date.now()) / 1000);
+  const formatter = new Intl.RelativeTimeFormat('en-GB', { numeric: 'auto' });
+  const units: [Intl.RelativeTimeFormatUnit, number][] = [
+    ['day', 86400],
+    ['hour', 3600],
+    ['minute', 60]
+  ];
+  for (const [unit, size] of units) {
+    if (Math.abs(seconds) >= size) return formatter.format(Math.round(seconds / size), unit);
+  }
+  return 'just now';
+}

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { apiJSON, formatDate, type Match } from '#lib/api';
+  import { apiJSON, relativeDate, type Match } from '#lib/api';
 
   let matches: Match[] = [];
   let loading = true;
@@ -23,7 +23,7 @@
 
 <section class="page stack">
   <div>
-    <p class="score">Mutual</p>
+    <p class="score"><span class="tennis-ball me-2" aria-hidden="true"></span>Mutual</p>
     <h1>Matches</h1>
   </div>
 
@@ -35,12 +35,12 @@
     <div class="surface stack">
       <h2>No matches yet</h2>
       <p class="muted">A match appears only when you and another player both choose Like.</p>
-      <a class="button" href="/discover">Go to Discover</a>
+      <a class="btn btn-primary align-self-start" href="/discover">Go to Discover</a>
     </div>
   {:else}
     <ul class="match-list">
       {#each matches as match (match.match_id)}
-        <li class="card">
+        <li class="card p-2">
           <a href={`/matches/${match.match_id}`} class="match-link">
             {#if match.photo_urls.length}
               <img class="photo thumb" src={match.photo_urls[0]} alt="" />
@@ -49,8 +49,8 @@
             {/if}
             <span class="match-copy">
               <strong>{match.display_name}</strong>
-              <span class="muted">Matched {formatDate(match.matched_at)}</span>
-              <span class="chip">{match.has_instagram ? 'Instagram available' : 'No Instagram'}</span>
+              <span class="muted">Matched {relativeDate(match.matched_at)}</span>
+              <span class="chip" class:optic={match.has_instagram}><i class="bi bi-instagram me-1" aria-hidden="true"></i>{match.has_instagram ? 'Instagram available' : 'No Instagram'}</span>
             </span>
           </a>
         </li>

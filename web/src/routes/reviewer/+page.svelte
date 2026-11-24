@@ -89,7 +89,7 @@
 
 <section class="page stack">
   <div>
-    <p class="score">Internal</p>
+    <p class="score mb-1"><span class="tennis-ball me-2" aria-hidden="true"></span>Internal</p>
     <h1>Reviewer console</h1>
   </div>
 
@@ -107,9 +107,9 @@
       <h2>Reviewer sign in</h2>
       <label>
         Reviewer e-mail
-        <input type="email" required bind:value={email} />
+        <input class="form-control" type="email" required bind:value={email} />
       </label>
-      <button type="submit">Send reviewer link</button>
+      <button class="btn btn-primary" type="submit">Send reviewer link</button>
     </form>
   {:else if state === 'mfa'}
     <div class="surface stack narrow">
@@ -123,16 +123,16 @@
       <form class="stack" onsubmit={verifyMFA}>
         <label>
           Code
-          <input inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" bind:value={code} />
+          <input class="form-control" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" bind:value={code} />
         </label>
-        <button type="submit">Verify code</button>
+        <button class="btn btn-primary" type="submit">Verify code</button>
       </form>
-      <button class="secondary" onclick={enroll}>Enroll this account</button>
+      <button class="btn btn-outline-secondary" onclick={enroll}>Enroll this account</button>
     </div>
   {:else}
     <div class="row spread">
       <h2>{reports.length} open reports</h2>
-      <button class="secondary" onclick={loadQueue}>Refresh</button>
+      <button class="btn btn-outline-secondary" onclick={loadQueue}>Refresh</button>
     </div>
     {#if !reports.length}
       <p class="notice">The queue is clear.</p>
@@ -147,12 +147,12 @@
             <p class="score">{report.category} · submitted {formatDate(report.created_at)} · due {formatDate(report.review_due_at)}</p>
             {#if report.details}<p>{report.details}</p>{/if}
             <div class="row">
-              <button class="secondary" onclick={() => decide(report.report_id, 'dismiss')}>Dismiss</button>
+              <button class="btn btn-outline-secondary" onclick={() => decide(report.report_id, 'dismiss')}>Dismiss</button>
               {#if confirmingBan === report.report_id}
-                <button class="danger" onclick={() => decide(report.report_id, 'ban')}>Confirm permanent ban</button>
-                <button class="ghost" onclick={() => (confirmingBan = null)}>Cancel</button>
+                <button class="btn btn-danger" onclick={() => decide(report.report_id, 'ban')}>Confirm permanent ban</button>
+                <button class="btn btn-outline-secondary" onclick={() => (confirmingBan = null)}>Cancel</button>
               {:else}
-                <button class="danger" onclick={() => (confirmingBan = report.report_id)}>Ban</button>
+                <button class="btn btn-danger" onclick={() => (confirmingBan = report.report_id)}>Ban</button>
               {/if}
             </div>
           </li>

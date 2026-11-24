@@ -4,7 +4,7 @@
 
 <section class="page narrow stack">
   <div>
-    <p class="score">Your data</p>
+    <p class="score mb-1"><span class="tennis-ball me-2" aria-hidden="true"></span>Your data</p>
     <h1>Download your data</h1>
   </div>
   <div class="surface stack">
@@ -13,9 +13,9 @@
       Excludes e-mail, date of birth, coordinates, other players' Instagram handles, signed photo
       URLs and reports other people made.
     </p>
-    <a class="button" href="/api/v1/account/export" download="tennis-connect-data.json">
+    <a class="btn btn-primary" href="/api/v1/account/export" download="tennis-connect-data.json">
       Download JSON
     </a>
-    <a class="button secondary" href="/settings">Back to settings</a>
+    <a class="btn btn-outline-secondary" href="/settings">Back to settings</a>
   </div>
 </section>

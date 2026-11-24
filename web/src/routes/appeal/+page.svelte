@@ -54,9 +54,9 @@
   {:else if !status}
     <h1>No suspension</h1>
     <p class="alert-box" role="alert">{error}</p>
-    <a class="button" href="/">Back</a>
+    <a class="btn btn-primary" href="/">Back</a>
   {:else}
-    <p class="score">Account suspended</p>
+    <p class="score mb-1"><span class="tennis-ball me-2" aria-hidden="true"></span>Account suspended</p>
     <h1>Your account is suspended</h1>
     <p>
       A reviewer found a serious breach of the safety rules. You can send one appeal before
@@ -78,10 +78,10 @@
       <form class="surface stack" onsubmit={submit}>
         <label>
           Why should the decision be reviewed?
-          <textarea required maxlength="2000" bind:value={body}></textarea>
+          <textarea class="form-control" required maxlength="2000" bind:value={body}></textarea>
           <small>{body.length}/2000. Do not include your own or anyone else's contact details.</small>
         </label>
-        <button type="submit" disabled={submitting}>{submitting ? 'Sending…' : 'Send appeal'}</button>
+        <button class="btn btn-primary" type="submit" disabled={submitting}>{submitting ? 'Sending…' : 'Send appeal'}</button>
       </form>
     {/if}
   {/if}

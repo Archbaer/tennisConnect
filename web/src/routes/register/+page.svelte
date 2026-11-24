@@ -58,9 +58,9 @@
       keeps the community and the reporting process consistent.
     </p>
     <p class="alert-box" role="alert">{error}</p>
-    <a class="button secondary" href="/">Back to the start</a>
+    <a class="btn btn-outline-secondary" href="/">Back to the start</a>
   {:else}
-    <p class="score">New account</p>
+    <p class="score mb-1"><span class="tennis-ball me-2" aria-hidden="true"></span>New account</p>
     <h1>Confirm your age</h1>
     <p>We ask once. Your date of birth is never shown to anyone or returned by the API.</p>
     {#if error}
@@ -69,9 +69,9 @@
     <form class="surface stack" onsubmit={register}>
       <label>
         Date of birth
-        <input type="date" name="birth_date" required bind:value={birthDate} max={new Date().toISOString().slice(0, 10)} />
+        <input class="form-control" type="date" name="birth_date" required bind:value={birthDate} max={new Date().toISOString().slice(0, 10)} />
       </label>
-      <button type="submit" disabled={submitting || !token}>
+      <button class="btn btn-primary" type="submit" disabled={submitting || !token}>
         {submitting ? 'Creating account…' : 'Continue'}
       </button>
       <small>You must be 18 or older. This is self-declared, not identity verification.</small>

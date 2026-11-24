@@ -45,9 +45,9 @@
       not show report counts or moderation state.
     </p>
     <p class="notice">Reports are reviewed against a 72-hour target.</p>
-    <a class="button" href="/discover">Back to Discover</a>
+    <a class="btn btn-primary" href="/discover">Back to Discover</a>
   {:else}
-    <p class="score">Safety</p>
+    <p class="score mb-1"><span class="tennis-ball me-2" aria-hidden="true"></span>Safety</p>
     <h1>Report a player</h1>
     <p class="muted">Never include your own contact details. The other player is not told who reported them.</p>
     {#if error}
@@ -58,8 +58,8 @@
         <legend>What happened?</legend>
         <div class="stack">
           {#each reportCategories as [value, label]}
-            <label class="radio">
-              <input type="radio" name="category" value={value} bind:group={category} />
+            <label class="radio form-check">
+              <input class="form-check-input" type="radio" name="category" value={value} bind:group={category} />
               {label}
             </label>
           {/each}
@@ -67,13 +67,13 @@
       </fieldset>
       <label>
         Details (optional)
-        <textarea maxlength="500" bind:value={details}></textarea>
+        <textarea class="form-control" maxlength="500" bind:value={details}></textarea>
         <small>{details.length}/500</small>
       </label>
-      <button type="submit" disabled={submitting || !target || !$online}>
+      <button class="btn btn-primary" type="submit" disabled={submitting || !target || !$online}>
         {submitting ? 'Submitting…' : 'Submit report'}
       </button>
-      <a class="button secondary" href="/discover">Cancel</a>
+      <a class="btn btn-outline-secondary" href="/discover">Cancel</a>
     </form>
   {/if}
 </section>
