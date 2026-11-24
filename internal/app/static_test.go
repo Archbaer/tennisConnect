@@ -29,6 +29,7 @@ func TestSPAHandlerServesAssetsAndFallback(t *testing.T) {
 	}{
 		{path: "/", body: "site"},
 		{path: "/discover", body: "site"},
+		{path: "/reviewer", body: "site"},
 		{path: "/app.js", body: "console.log"},
 	} {
 		request := httptest.NewRequest(http.MethodGet, test.path, nil)

@@ -25,7 +25,7 @@ func spaHandler(dir string) http.Handler {
 			}
 		}
 		clean := path.Clean("/" + r.URL.Path)
-		for _, prefix := range []string{"/api/", "/auth/", "/reviewer/", "/healthz"} {
+		for _, prefix := range []string{"/api/", "/auth/", "/reviewer/verify", "/healthz"} {
 			if clean == strings.TrimSuffix(prefix, "/") || strings.HasPrefix(clean, prefix) {
 				http.NotFound(w, r)
 				return
