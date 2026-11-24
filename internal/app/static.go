@@ -41,10 +41,16 @@ func spaHandler(dir string) http.Handler {
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=(self)")
 
-		target := filepath.Join(dir, filepath.FromSlash(clean))
-		if info, err := os.Stat(target); err == nil && !info.IsDir() {
-			files.ServeHTTP(w, r)
-			return
+		// http.Dir applies its own traversal guard; the request path was also
+		// cleaned and checked above. Stat through it so gosec does not see a
+		// tainted filepath.Join.
+		if asset, err := http.Dir(dir).Open(clean); err == nil {
+			info, statErr := asset.Stat()
+			_ = asset.Close()
+			if statErr == nil && !info.IsDir() {
+				files.ServeHTTP(w, r)
+				return
+			}
 		}
 		index := filepath.Join(dir, "index.html")
 		if _, err := os.Stat(index); err != nil {
