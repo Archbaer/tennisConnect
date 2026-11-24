@@ -121,6 +121,20 @@ their five-minute lifetime.
 - Playwright covers Chromium only. iOS Safari and Android Chrome need a manual
   accessibility and upload pass.
 
+## Final verification, 2026-11-24
+
+- `go test -race ./...` against PostGIS: all packages pass.
+- `go vet ./...`, `gofmt -l .`, `go mod verify`, `go mod tidy -diff`: clean.
+- `govulncheck ./...`: no vulnerabilities (toolchain go1.26.11).
+- `gitleaks detect --source .`: 99 commits, no leaks.
+- `npm run check`: 0 errors, 0 warnings.
+- `npm run test`: 4 tests pass.
+- `npm run test:e2e`: 3 Chromium tests pass, including serious/critical axe.
+- `npm audit --omit=dev`: 0 vulnerabilities.
+- `docker build` plus container `/` and `/healthz` smoke test: 200.
+- Production load, iOS Safari, Android Chrome, PITR drills and public deployment
+  are not covered by this run. See `docs/deploy.md`.
+
 ## Verification before merge
 
 - `go test -race -count=2 -shuffle=on ./...` against the PostGIS test database.
