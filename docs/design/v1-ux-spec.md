@@ -1,6 +1,6 @@
 # Tennis Connect — V1 UX specification
 
-**Task:** plan.md Task 4 (design track). **Status:** approved for implementation on 2026-11-05; Task 8 builds from this spec.
+**Task:** plan.md Task 4 (design track). **Status:** structure, flows and accessibility approved. Visual direction superseded by `docs/design/court-side-theme.md` (Bootstrap + Court side).
 **Scope:** mobile web, 390 × 844 baseline (safe at 320 px reflow), UK English, adults only.
 **This is a design artifact.** It contains no code, no routes to build in this task, and no HTML.
 **Consumes:** auth + profile + photos contracts already implemented (Tasks 1–2, README).
