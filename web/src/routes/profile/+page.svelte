@@ -4,6 +4,7 @@
 
   let profile: Profile | null = null;
   let photos: Photo[] = [];
+  let photoUrls: Record<string, string> = {};
   let area = '';
   let loading = true;
   let error = '';
@@ -16,6 +17,17 @@
     }
     try {
       photos = (await apiJSON<{ photos: Photo[] }>('/api/v1/photos')).photos;
+      const urls: Record<string, string> = {};
+      for (const photo of photos) {
+        if (photo.status === 'rejected') continue;
+        try {
+          const url = await apiJSON<{ url: string }>(`/api/v1/photos/${photo.photo_id}/url`);
+          urls[photo.photo_id] = url.url;
+        } catch {
+          // A missing owner thumbnail is not a profile failure.
+        }
+      }
+      photoUrls = urls;
     } catch {
       photos = [];
     }
@@ -35,10 +47,10 @@
 <section class="page narrow stack">
   <div class="spread">
     <div>
-      <p class="score">Your card</p>
+      <p class="score mb-1"><span class="tennis-ball me-2" aria-hidden="true"></span>Your card</p>
       <h1>You</h1>
     </div>
-    <a class="button secondary" href="/profile/edit">Edit profile</a>
+    <a class="btn btn-outline-secondary" href="/profile/edit">Edit profile</a>
   </div>
 
   {#if loading}
@@ -46,9 +58,30 @@
   {:else if !profile}
     <div class="surface stack">
       <p class="alert-box" role="alert">{error || 'Your profile is not complete.'}</p>
-      <a class="button" href="/onboarding">Finish onboarding</a>
+      <a class="btn btn-primary" href="/onboarding">Finish onboarding</a>
     </div>
   {:else}
+    {#if !photos.some((photo) => photo.status === 'approved')}
+      <div class="alert alert-warning d-flex flex-wrap align-items-center justify-content-between gap-2" role="status">
+        <span>You're not in Discover yet — one approved photo is needed.</span>
+        <a class="btn btn-sm btn-primary" href="/profile/photos">Review photos</a>
+      </div>
+    {/if}
+
+    {#if photos.length}
+      <div class="photo-grid">
+        {#each photos as photo}
+          {#if photoUrls[photo.photo_id]}
+            <img class="photo" src={photoUrls[photo.photo_id]} alt={`Photo ${photo.display_order}`} />
+          {:else}
+            <div class="photo d-flex align-items-center justify-content-center text-muted" aria-label={`Photo ${photo.display_order}: ${photo.status}`}>
+              <i class="bi bi-image" aria-hidden="true"></i>
+            </div>
+          {/if}
+        {/each}
+      </div>
+    {/if}
+
     <div class="surface stack">
       <div class="spread">
         <h2>{profile.display_name}{profile.age ? `, ${profile.age}` : ''}</h2>

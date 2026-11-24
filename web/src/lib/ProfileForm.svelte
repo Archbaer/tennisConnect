@@ -74,11 +74,11 @@
   <div class="grid two">
     <label>
       Display name
-      <input name="display_name" required maxlength="50" bind:value={form.display_name} />
+      <input class="form-control" name="display_name" required maxlength="50" bind:value={form.display_name} />
     </label>
     <label>
       Level
-      <select bind:value={form.skill_level}>
+      <select class="form-select" bind:value={form.skill_level}>
         <option value="beginner">Beginner</option>
         <option value="improver">Improver</option>
         <option value="intermediate">Intermediate</option>
@@ -90,14 +90,14 @@
   <div class="grid two">
     <label>
       You are
-      <select bind:value={form.gender}>
+      <select class="form-select" bind:value={form.gender}>
         <option value="woman">Woman</option>
         <option value="man">Man</option>
       </select>
     </label>
     <label>
       Show me
-      <select bind:value={form.gender_preference}>
+      <select class="form-select" bind:value={form.gender_preference}>
         <option value="all">Everyone</option>
         <option value="women">Women</option>
         <option value="men">Men</option>
@@ -107,18 +107,18 @@
 
   <label>
     Short bio
-    <textarea maxlength="200" bind:value={form.bio}></textarea>
+    <textarea class="form-control" maxlength="200" bind:value={form.bio}></textarea>
     <small>{form.bio.length}/200. No phone numbers, e-mail addresses or dates written as numbers.</small>
   </label>
 
   <label>
     Ranking (optional, self-reported)
-    <input maxlength="50" bind:value={form.ranking} />
+    <input class="form-control" maxlength="50" bind:value={form.ranking} />
   </label>
 
   <label>
     Instagram (optional, shared only after a mutual match)
-    <input bind:value={form.instagram_handle} placeholder="yourhandle" autocomplete="off" />
+    <input class="form-control" bind:value={form.instagram_handle} placeholder="yourhandle" autocomplete="off" />
   </label>
 
   <fieldset>
@@ -126,18 +126,18 @@
     <div class="grid two">
       <label>
         Minimum
-        <input type="number" min="18" max="120" bind:value={form.min_age} />
+        <input class="form-control" type="number" min="18" max="120" bind:value={form.min_age} />
       </label>
       <label>
         Maximum
-        <input type="number" min="18" max="120" bind:value={form.max_age} />
+        <input class="form-control" type="number" min="18" max="120" bind:value={form.max_age} />
       </label>
     </div>
   </fieldset>
 
   <label>
     Skill tolerance
-    <select bind:value={form.skill_tolerance}>
+    <select class="form-select" bind:value={form.skill_tolerance}>
       <option value={0}>Exact level only</option>
       <option value={1}>Include the adjacent level</option>
     </select>
@@ -151,7 +151,7 @@
         <div class="slot-row">
           <label>
             Day
-            <select bind:value={slot.weekday}>
+            <select class="form-select" bind:value={slot.weekday}>
               {#each [1, 2, 3, 4, 5, 6, 7] as day}
                 <option value={day}>{weekdayLabel(day)}</option>
               {/each}
@@ -159,15 +159,15 @@
           </label>
           <label>
             From
-            <input type="time" bind:value={slot.start} />
+            <input class="form-control" type="time" bind:value={slot.start} />
           </label>
           <label>
             To
-            <input type="time" bind:value={slot.end} />
+            <input class="form-control" type="time" bind:value={slot.end} />
           </label>
           <button
             type="button"
-            class="secondary"
+            class="btn btn-outline-secondary"
             onclick={() => removeSlot(index)}
             disabled={form.availability.length === 1}
             aria-label={`Remove ${weekdayLabel(slot.weekday)} slot`}
@@ -177,12 +177,12 @@
         </div>
       {/each}
     </div>
-    <button type="button" class="secondary" onclick={addSlot} disabled={form.availability.length >= 20}>
+    <button type="button" class="btn btn-outline-secondary" onclick={addSlot} disabled={form.availability.length >= 20}>
       Add a slot
     </button>
   </fieldset>
 
-  <button type="submit" disabled={saving || !$online}>{saving ? 'Saving…' : submitLabel}</button>
+  <button class="btn btn-primary" type="submit" disabled={saving || !$online}>{saving ? 'Saving…' : submitLabel}</button>
 </form>
 
 <style>

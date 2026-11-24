@@ -35,8 +35,8 @@ test('discover shows a card and creates a mutual match', async ({ page }) => {
   );
   await page.goto('/discover');
   await expect(page.getByRole('heading', { name: 'Priya, 32' })).toBeVisible();
-  await page.getByRole('button', { name: 'Like' }).click();
-  await expect(page.getByRole('heading', { name: /you both said yes/i })).toBeVisible();
+  await page.getByRole('button', { name: "I'd play" }).click();
+  await expect(page.getByRole('heading', { name: /you're both in/i })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Open match' })).toBeVisible();
 });
 

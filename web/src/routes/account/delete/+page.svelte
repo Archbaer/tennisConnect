@@ -37,9 +37,9 @@
       {new Date(recoverUntil).toLocaleDateString('en-GB')} restores the account. After that it is
       deleted.
     </p>
-    <a class="button" href="/">Return to the start</a>
+    <a class="btn btn-primary" href="/">Return to the start</a>
   {:else}
-    <p class="score">Careful</p>
+    <p class="score mb-1"><span class="tennis-ball me-2" aria-hidden="true"></span>Careful</p>
     <h1>Delete account</h1>
     <p>
       Your profile, photos, matches and likes are hidden immediately. You have 30 days to recover by
@@ -56,10 +56,10 @@
       I understand this hides my account now and deletes it after 30 days.
     </label>
     <div class="row">
-      <button class="danger" disabled={!confirmed || deleting} onclick={remove}>
+      <button class="btn btn-danger" disabled={!confirmed || deleting} onclick={remove}>
         {deleting ? 'Deleting…' : 'Delete my account'}
       </button>
-      <a class="button secondary" href="/settings">Cancel</a>
+      <a class="btn btn-outline-secondary" href="/settings">Cancel</a>
     </div>
   {/if}
 </section>

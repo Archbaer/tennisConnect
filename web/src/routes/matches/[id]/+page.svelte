@@ -1,12 +1,13 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { apiJSON, formatDate, type Match } from '#lib/api';
+  import { apiJSON, relativeDate, type Match } from '#lib/api';
 
   let match: Match | null = null;
   let matchID = '';
   let handle = '';
   let error = '';
+  let copied = '';
   let loading = true;
   let confirmingBlock = false;
 
@@ -27,12 +28,15 @@
         `/api/v1/matches/${matchID}/instagram`
       );
       handle = result.instagram_handle;
-      if (!handle) {
-        error = 'They have not added an Instagram handle.';
-      }
     } catch (problem) {
       error = problem instanceof Error ? problem.message : 'Instagram is unavailable.';
     }
+  }
+
+  async function copyHandle() {
+    await navigator.clipboard.writeText(`@${handle}`);
+    copied = `Copied @${handle}`;
+    setTimeout(() => (copied = ''), 2500);
   }
 
   async function block() {
@@ -55,16 +59,30 @@
 
 <section class="page narrow stack">
   {#if loading}
-    <p role="status">Loading match…</p>
+    <div class="card p-3" aria-hidden="true">
+      <div class="placeholder-glow">
+        <p class="placeholder col-6"></p>
+        <p class="placeholder col-10"></p>
+      </div>
+    </div>
+    <p class="visually-hidden" role="status">Loading match…</p>
   {:else if error && !match}
-    <div class="alert-box stack" role="alert">
-      <p>{error}</p>
-      <a class="button" href="/matches">Back to matches</a>
+    <div class="alert alert-danger stack" role="alert">
+      <p class="mb-0">{error}</p>
+      <a class="btn btn-outline-danger align-self-start" href="/matches">Back to matches</a>
     </div>
   {:else if match}
-    <p class="score">Mutual match</p>
-    <h1>{match.display_name}</h1>
-    <p class="muted">Matched {formatDate(match.matched_at)}</p>
+    <a class="d-inline-flex align-items-center gap-1 text-decoration-none" href="/matches">
+      <i class="bi bi-arrow-left" aria-hidden="true"></i> Matches
+    </a>
+    <div class="d-flex justify-content-between align-items-start gap-3">
+      <div>
+        <p class="score mb-1"><span class="tennis-ball me-2" aria-hidden="true"></span>Mutual match</p>
+        <h1 class="mb-1">{match.display_name}</h1>
+        <p class="muted mb-0">Matched {relativeDate(match.matched_at)}</p>
+      </div>
+      <i class="bi bi-people fs-3 text-success" aria-hidden="true"></i>
+    </div>
 
     {#if match.photo_urls.length}
       <div class="photo-grid">
@@ -75,21 +93,34 @@
     {/if}
 
     {#if error}
-      <p class="alert-box" role="alert">{error}</p>
+      <p class="alert alert-danger" role="alert">{error}</p>
     {/if}
 
     <div class="surface stack">
-      <h2>Instagram</h2>
-      <p class="muted">
-        The handle is released only through this action, only while the match exists. It is never
-        included in the match list.
+      <div class="d-flex align-items-center gap-2">
+        <i class="bi bi-instagram" aria-hidden="true"></i>
+        <h2 class="mb-0">Instagram</h2>
+      </div>
+      <p class="muted mb-0">
+        Shared because you both matched. It is never included in the match list.
       </p>
       {#if handle}
-        <p class="instagram" aria-live="polite">@{handle}</p>
+        <p class="instagram mb-0">@{handle}</p>
+        <div class="d-flex flex-wrap gap-2">
+          <button class="btn btn-primary" onclick={copyHandle} aria-label={`Copy ${match.display_name}'s Instagram handle`}>
+            <i class="bi bi-clipboard" aria-hidden="true"></i> Copy
+          </button>
+          <a class="btn btn-outline-secondary" href={`https://instagram.com/${handle}`} target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">
+            Open Instagram
+          </a>
+        </div>
+        <p class="visually-hidden" aria-live="polite">{copied}</p>
       {:else if match.has_instagram}
-        <button onclick={showInstagram}>Show Instagram</button>
+        <button class="btn btn-primary align-self-start" onclick={showInstagram}>Show Instagram</button>
       {:else}
-        <p class="notice">They have not added an Instagram handle.</p>
+        <p class="notice mb-0">
+          {match.display_name} hasn't added Instagram. Tennis Connect doesn't have chat yet, so meet on court at the times above.
+        </p>
       {/if}
     </div>
 
@@ -97,14 +128,21 @@
       <h2>Safety</h2>
       <p class="muted">Blocking closes the match for both of you and stops new photo and handle access.</p>
       {#if confirmingBlock}
-        <div class="row">
-          <button class="danger" onclick={block}>Confirm block</button>
-          <button class="ghost" onclick={() => (confirmingBlock = false)}>Cancel</button>
+        <div class="alert alert-danger stack" role="alert">
+          <p class="mb-0">Block {match.display_name}? You won't see each other in Discover. The match closes.</p>
+          <div class="d-flex gap-2">
+            <button class="btn btn-danger" onclick={block}>Block</button>
+            <button class="btn btn-outline-secondary" onclick={() => (confirmingBlock = false)}>Cancel</button>
+          </div>
         </div>
       {:else}
-        <div class="row">
-          <a class="button secondary" href={`/report?target=${match.player_id}`}>Report</a>
-          <button class="secondary" onclick={() => (confirmingBlock = true)}>Block</button>
+        <div class="d-flex flex-wrap gap-2">
+          <a class="btn btn-outline-secondary" href={`/report?target=${match.player_id}`}>
+            <i class="bi bi-flag" aria-hidden="true"></i> Report
+          </a>
+          <button class="btn btn-outline-danger" onclick={() => (confirmingBlock = true)}>
+            <i class="bi bi-slash-circle" aria-hidden="true"></i> Block
+          </button>
         </div>
       {/if}
     </div>
@@ -113,7 +151,8 @@
 
 <style>
   .instagram {
-    font-size: 1.35rem;
-    font-weight: 700;
+    font-size: 1.5rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
   }
 </style>

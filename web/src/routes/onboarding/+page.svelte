@@ -111,14 +111,17 @@
 
 <section class="page narrow stack">
   <div>
-    <p class="score">Onboarding · {step} of 3</p>
+    <p class="score mb-1"><span class="tennis-ball me-2" aria-hidden="true"></span>Onboarding · {step} of 3</p>
     <h1>Build your player card</h1>
     <p class="muted">Only what another player needs to decide whether to play with you.</p>
+    <div class="progress" role="progressbar" aria-label="Onboarding progress" aria-valuenow={step} aria-valuemin="1" aria-valuemax="3">
+      <div class="progress-bar" style={`width: ${(step / 3) * 100}%`}></div>
+    </div>
   </div>
 
   {#if step === 1}
     <div class="surface stack">
-      <h2>Your profile</h2>
+      <h2><i class="bi bi-person me-2" aria-hidden="true"></i>Your profile</h2>
       <ProfileForm
         initial={profile}
         submitLabel="Save and continue"
@@ -130,7 +133,7 @@
   {:else if step === 2}
     <PhotoManager {photos} onChange={refreshPhotos} />
     <div class="surface stack">
-      <h2>Where you play</h2>
+      <h2><i class="bi bi-geo-alt me-2" aria-hidden="true"></i>Where you play</h2>
       <p class="muted">A postcode or neighbourhood. We store a coarse area and never return coordinates.</p>
       {#if areaLabel}
         <p class="notice">Your area: {areaLabel}</p>
@@ -142,7 +145,7 @@
         <p class="alert-box" role="alert">{permissionError}</p>
       {/if}
       <div class="row">
-        <button type="button" class="secondary" onclick={useLocation} disabled={locating || !$online}>
+        <button type="button" class="btn btn-outline-secondary" onclick={useLocation} disabled={locating || !$online}>
           {locating ? 'Finding your area…' : 'Use my location'}
         </button>
         <small class="muted">Browser location is sent to Mapbox and stored as a coarse area.</small>
@@ -150,12 +153,12 @@
       <form class="row" onsubmit={saveArea}>
         <label class="grow">
           Postcode or area
-          <input required bind:value={area} placeholder="SW11 4NJ or Battersea" />
+          <input class="form-control" required bind:value={area} placeholder="SW11 4NJ or Battersea" />
         </label>
-        <button type="submit" disabled={!$online}>Save area</button>
+        <button class="btn btn-primary" type="submit" disabled={!$online}>Save area</button>
       </form>
       <button
-        class="secondary"
+        class="btn btn-outline-secondary"
         type="button"
         onclick={() => {
           step = 3;
@@ -164,7 +167,7 @@
     </div>
   {:else}
     <div class="surface stack">
-      <h2>Ready check</h2>
+      <h2><i class="bi bi-flag me-2" aria-hidden="true"></i>Ready check</h2>
       <ul>
         <li>Profile: {profile ? 'saved' : 'missing'}</li>
         <li>Approved photo: {photos.some((photo) => photo.status === 'approved') ? 'yes' : 'not yet'}</li>
@@ -174,9 +177,9 @@
         Discover needs a profile, an area and one approved photo. Photo review is synchronous.
       </p>
       {#if ready}
-        <button onclick={finish}>Go to Discover</button>
+        <button class="btn btn-primary" onclick={finish}>Go to Discover</button>
       {:else}
-        <button class="secondary" onclick={() => (step = 1)}>Review my setup</button>
+        <button class="btn btn-outline-secondary" onclick={() => (step = 1)}>Review my setup</button>
       {/if}
     </div>
   {/if}
