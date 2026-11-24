@@ -1,5 +1,6 @@
 <script lang="ts">
   import { apiJSON, type Photo } from '#lib/api';
+  import { online } from '#lib/offline';
   import { onMount } from 'svelte';
 
   export let photos: Photo[] = [];
@@ -84,7 +85,7 @@
       type="file"
       accept="image/jpeg,image/png,image/webp"
       onchange={upload}
-      disabled={busy || photos.length >= 3}
+      disabled={busy || photos.length >= 3 || !$online}
     />
     <small>{busy ? 'Checking the photo…' : 'The server checks the image and strips location metadata.'}</small>
   </label>

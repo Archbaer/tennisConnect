@@ -1,12 +1,30 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
   import '../app.css';
+  import { online, watchConnectivity } from '#lib/offline';
   import { loadSession, session } from '#lib/session';
 
   let { children } = $props();
 
+  const protectedPrefixes = ['/discover', '/matches', '/profile', '/onboarding', '/settings', '/account', '/report'];
+
+  function needsAccount(path: string): boolean {
+    return protectedPrefixes.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
+  }
+
   onMount(() => {
-    loadSession();
+    const stop = watchConnectivity();
+    loadSession().then((state) => {
+      const path = window.location.pathname;
+      if (state === 'signed-out' && needsAccount(path)) {
+        goto(`/?next=${encodeURIComponent(path)}`, { replace: true });
+      }
+      if (state === 'suspended' && needsAccount(path)) {
+        goto('/appeal', { replace: true });
+      }
+    });
+    return stop;
   });
 </script>
 
@@ -35,6 +53,12 @@
   </div>
 </header>
 
+{#if !$online}
+  <div class="offline-banner" role="status" aria-live="polite">
+    You are offline. Saved screens still work; sending changes will wait until you reconnect.
+  </div>
+{/if}
+
 <main id="main">
   {@render children()}
 </main>
@@ -42,7 +66,7 @@
 <footer class="site-footer">
   <div class="page row spread">
     <span class="muted">Adults only. UK tennis. Your area is never shown exactly.</span>
-    <a href="/settings">Privacy and safety</a>
+    <a href="/#how">Privacy and safety</a>
   </div>
 </footer>
 
@@ -91,4 +115,17 @@
   .site-footer .page {
     padding-block: 0;
   }
+
+  .offline-banner {
+    padding: 0.65rem 1.25rem;
+    text-align: center;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .offline-banner {
+    background: #f7e4e1;
+    border-bottom: 1px solid #e6c4bf;
+  }
+
 </style>

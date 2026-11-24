@@ -26,6 +26,7 @@ test('landing page offers a passwordless sign-in', async ({ page }) => {
 });
 
 test('discover shows a card and creates a mutual match', async ({ page }) => {
+  await page.route('**/api/v1/auth/session', (route) => route.fulfill({ status: 204, body: '' }));
   await page.route('**/api/v1/discovery?**', (route) =>
     route.fulfill({ json: { cards: [card], next_cursor: null } })
   );
@@ -37,6 +38,12 @@ test('discover shows a card and creates a mutual match', async ({ page }) => {
   await page.getByRole('button', { name: 'Like' }).click();
   await expect(page.getByRole('heading', { name: /you both said yes/i })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Open match' })).toBeVisible();
+});
+
+test('offline state is announced', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => window.dispatchEvent(new Event('offline')));
+  await expect(page.getByRole('status').filter({ hasText: 'You are offline' })).toBeVisible();
 });
 
 test('landing page has no serious accessibility violations', async ({ page }) => {

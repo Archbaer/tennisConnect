@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { apiJSON, type Photo, type Profile } from '#lib/api';
+  import { online } from '#lib/offline';
   import ProfileForm from '#lib/ProfileForm.svelte';
   import PhotoManager from '#lib/PhotoManager.svelte';
 
@@ -10,6 +11,8 @@
   let area = '';
   let areaLabel = '';
   let areaError = '';
+  let permissionError = '';
+  let locating = false;
   let step = 1;
   let ready = false;
 
@@ -41,6 +44,45 @@
     } catch {
       photos = [];
     }
+  }
+
+  function useLocation() {
+    permissionError = '';
+    if (!navigator.geolocation) {
+      permissionError = 'This browser does not provide a location. Enter a postcode or area instead.';
+      return;
+    }
+    locating = true;
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const result = await apiJSON<{ area_label: string }>('/api/v1/location', {
+            method: 'PUT',
+            body: JSON.stringify({
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude
+            })
+          });
+          areaLabel = result.area_label;
+          step = 3;
+        } catch (problem) {
+          permissionError =
+            problem instanceof Error ? problem.message : 'We could not use that location.';
+        } finally {
+          locating = false;
+        }
+      },
+      (problem) => {
+        locating = false;
+        if (problem.code === 1) {
+          permissionError =
+            'Location permission was denied. Enter a postcode or neighbourhood instead.';
+          return;
+        }
+        permissionError = 'We could not get your location. Enter a postcode or area instead.';
+      },
+      { timeout: 10000, maximumAge: 0 }
+    );
   }
 
   async function saveArea(event: SubmitEvent) {
@@ -96,12 +138,21 @@
       {#if areaError}
         <p class="alert-box" role="alert">{areaError}</p>
       {/if}
+      {#if permissionError}
+        <p class="alert-box" role="alert">{permissionError}</p>
+      {/if}
+      <div class="row">
+        <button type="button" class="secondary" onclick={useLocation} disabled={locating || !$online}>
+          {locating ? 'Finding your area…' : 'Use my location'}
+        </button>
+        <small class="muted">Browser location is sent to Mapbox and stored as a coarse area.</small>
+      </div>
       <form class="row" onsubmit={saveArea}>
         <label class="grow">
           Postcode or area
           <input required bind:value={area} placeholder="SW11 4NJ or Battersea" />
         </label>
-        <button type="submit">Save area</button>
+        <button type="submit" disabled={!$online}>Save area</button>
       </form>
       <button
         class="secondary"
