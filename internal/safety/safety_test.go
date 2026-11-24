@@ -138,6 +138,11 @@ func TestDismissAndBanTransitions(t *testing.T) {
 		VALUES ($1, $2, now() + interval '1 hour')`, bytes.Repeat([]byte{9}, 32), target); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := testutil.DB.Exec(`
+		INSERT INTO matches (user_low, user_high)
+		SELECT LEAST($1::uuid, $2::uuid), GREATEST($1::uuid, $2::uuid)`, reporter, target); err != nil {
+		t.Fatal(err)
+	}
 	var secondID string
 	if err := testutil.DB.QueryRow("SELECT id FROM reports WHERE status = 'open'").Scan(&secondID); err != nil {
 		t.Fatal(err)
@@ -162,6 +167,13 @@ func TestDismissAndBanTransitions(t *testing.T) {
 	}
 	if sessions != 0 {
 		t.Fatal("ban did not revoke sessions")
+	}
+	var matches int
+	if err := testutil.DB.QueryRow("SELECT count(*) FROM matches WHERE user_low = $1 OR user_high = $1", target).Scan(&matches); err != nil {
+		t.Fatal(err)
+	}
+	if matches != 0 {
+		t.Fatal("ban did not close matches")
 	}
 }
 

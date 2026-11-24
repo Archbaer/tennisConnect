@@ -46,7 +46,7 @@
       signing in again. After 30 days the account is deleted.
     </p>
     <p class="muted">
-      Download your data first if you want a copy. Reports you made are retained for safety.
+      Download your data first if you want a copy. Reports you made are used only for the safety review.
     </p>
     {#if error}
       <p class="alert-box" role="alert">{error}</p>
