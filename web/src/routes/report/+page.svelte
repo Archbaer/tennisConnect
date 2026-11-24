@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { apiJSON, reportCategories } from '#lib/api';
+  import { online } from '#lib/offline';
 
   let target = '';
   let category = 'harassment';
@@ -69,7 +70,7 @@
         <textarea maxlength="500" bind:value={details}></textarea>
         <small>{details.length}/500</small>
       </label>
-      <button type="submit" disabled={submitting || !target}>
+      <button type="submit" disabled={submitting || !target || !$online}>
         {submitting ? 'Submitting…' : 'Submit report'}
       </button>
       <a class="button secondary" href="/discover">Cancel</a>

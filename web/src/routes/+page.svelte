@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { apiJSON } from '#lib/api';
+  import { online } from '#lib/offline';
   import { loadSession } from '#lib/session';
 
   let email = '';
@@ -46,7 +47,7 @@
     </p>
     <div class="row">
       <a class="button" href="#sign-in">Find players</a>
-      <a class="button secondary" href="/settings">How safety works</a>
+      <a class="button secondary" href="#how">How safety works</a>
     </div>
   </div>
 
@@ -97,7 +98,7 @@
           placeholder="you@example.com"
         />
       </label>
-      <button type="submit" disabled={submitting}>
+      <button type="submit" disabled={submitting || !$online}>
         {submitting ? 'Sending…' : 'Send sign-in link'}
       </button>
       <small>By continuing you confirm you are 18 or older.</small>

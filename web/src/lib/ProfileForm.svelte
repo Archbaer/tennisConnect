@@ -1,5 +1,6 @@
 <script lang="ts">
   import { apiJSON, weekdayLabel, type Availability, type Profile } from '#lib/api';
+  import { online } from '#lib/offline';
 
   export let initial: Profile | null = null;
   export let submitLabel = 'Save profile';
@@ -181,7 +182,7 @@
     </button>
   </fieldset>
 
-  <button type="submit" disabled={saving}>{saving ? 'Saving…' : submitLabel}</button>
+  <button type="submit" disabled={saving || !$online}>{saving ? 'Saving…' : submitLabel}</button>
 </form>
 
 <style>

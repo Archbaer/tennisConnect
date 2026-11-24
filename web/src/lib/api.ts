@@ -10,14 +10,25 @@ export class ApiError extends Error {
 const apiBase = import.meta.env.PUBLIC_API_BASE_URL ?? '';
 
 export async function api(path: string, init: RequestInit = {}): Promise<Response> {
-  const response = await fetch(`${apiBase}${path}`, {
-    ...init,
-    credentials: 'include',
-    headers: {
-      ...(init.body ? { 'Content-Type': 'application/json' } : {}),
-      ...init.headers
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    throw new ApiError(0, 'You are offline. Reconnect and try again.');
+  }
+  let response: Response;
+  try {
+    response = await fetch(`${apiBase}${path}`, {
+      ...init,
+      credentials: 'include',
+      headers: {
+        ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+        ...init.headers
+      }
+    });
+  } catch (problem) {
+    if (problem instanceof TypeError) {
+      throw new ApiError(0, 'You appear to be offline. Reconnect and try again.');
     }
-  });
+    throw problem;
+  }
   if (!response.ok) {
     let message = 'Something went wrong.';
     try {
