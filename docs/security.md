@@ -78,6 +78,30 @@ their five-minute lifetime.
 - Backups may retain deleted data for the provider's retention window. The
   documented launch requirement is a 30-day PITR policy.
 
+## Frontend
+
+- The SvelteKit app is static, same-origin with the API, and uses `credentials:
+  include`. It never reads or writes tokens, other players' private fields, or
+  session data in `localStorage`/`sessionStorage`.
+- User content is rendered through Svelte text interpolation. There is no
+  `{@html}` path for a profile, bio, report or message.
+- The Go static handler refuses non-GET/HEAD requests, dotfiles, `..` segments
+  and any path under `/api/`, `/auth/`, `/reviewer/` or `/healthz`. Unknown API
+  paths stay 404 instead of returning `index.html`.
+- Authorization remains server-side. A hidden button is not a permission check;
+  every mutation is re-authorized by the API.
+- Playwright covers the landing and discover flows plus serious/critical axe
+  checks. Mobile Safari and Android Chrome remain manual launch gates.
+
+## Deployment
+
+- The image is distroless, non-root, with no shell or Node runtime.
+- Secrets come from Secrets Manager. `EMAIL_ENCRYPTION_KEY` and `EMAIL_HMAC_KEY`
+  are stable; rotating them breaks account lookup and reviewer TOTP.
+- S3 blocks public access and serves only presigned URLs. RDS is private with
+  30-day PITR.
+- No CD exists. `main` does not deploy.
+
 ## Accepted risks
 
 - Signed URLs issued before a ban, block or deletion remain valid until their
@@ -91,6 +115,11 @@ their five-minute lifetime.
 - Production dense-city load and the one-hour 50 RPS soak remain unproven. The
   committed load gate is local and environment-gated.
 - CD is deferred; `main` deploys nothing automatically.
+- The static app has no Content-Security-Policy yet. SvelteKit's generated
+  bootstrap script makes a naive `script-src 'self'` fail; add a hash/nonce
+  policy and verify the build in Task 9 follow-up.
+- Playwright covers Chromium only. iOS Safari and Android Chrome need a manual
+  accessibility and upload pass.
 
 ## Verification before merge
 

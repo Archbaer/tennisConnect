@@ -1,0 +1,13 @@
+.git
+.github
+.env
+.claude
+.archify
+.remember
+web/node_modules
+web/.svelte-kit
+web/build
+web/test-results
+web/playwright-report
+docs
+*.md
