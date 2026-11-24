@@ -23,7 +23,7 @@ export default defineConfig({
     proxy: {
       '/api': api,
       '/auth': api,
-      '/reviewer': api,
+      '/reviewer/verify': api,
       '/healthz': api
     }
   },
