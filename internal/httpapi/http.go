@@ -39,6 +39,14 @@ func OriginAllowed(r *http.Request, expected string) bool {
 	return origin == "" || strings.EqualFold(origin, expected)
 }
 
+// OriginAllowedForm also accepts the opaque origin browsers send when a form
+// page sets Referrer-Policy: no-referrer. Callers must require a single-use
+// token; do not use this for JSON APIs.
+func OriginAllowedForm(r *http.Request, expected string) bool {
+	origin := r.Header.Get("Origin")
+	return origin == "" || origin == "null" || strings.EqualFold(origin, expected)
+}
+
 func PreventCaching(w http.ResponseWriter) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Referrer-Policy", "no-referrer")

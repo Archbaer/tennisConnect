@@ -42,6 +42,45 @@ func TestAuthRejectsCrossOriginPosts(t *testing.T) {
 	}
 }
 
+func TestTokenFormsAcceptOpaqueOrigin(t *testing.T) {
+	auth, _ := newTestAuth(t)
+	tests := []struct {
+		name    string
+		handler http.HandlerFunc
+		path    string
+		body    string
+	}{
+		{name: "verify", handler: auth.VerifyLink, path: "/api/v1/auth/verify", body: "token=abc"},
+		{name: "register", handler: auth.Register, path: "/api/v1/auth/register", body: "token=abc&birth_date=2000-01-01"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPost, test.path, strings.NewReader(test.body))
+			request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			request.Header.Set("Origin", "null")
+			response := httptest.NewRecorder()
+			test.handler(response, request)
+			if response.Code != http.StatusUnauthorized {
+				t.Fatalf("status = %d, want 401 after origin check", response.Code)
+			}
+		})
+	}
+}
+
+func TestJSONAuthRejectsOpaqueOrigin(t *testing.T) {
+	auth, emails := newTestAuth(t)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/auth/link", strings.NewReader(`{"email":"player@example.com"}`))
+	request.Header.Set("Origin", "null")
+	response := httptest.NewRecorder()
+	auth.RequestLink(response, request)
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", response.Code)
+	}
+	if len(*emails) != 0 {
+		t.Fatal("opaque-origin JSON request triggered email")
+	}
+}
+
 func TestSessionEndpointValidatesServerSession(t *testing.T) {
 	auth, emails := newTestAuth(t)
 	userID := insertTestUser(t, auth, "player@example.com")

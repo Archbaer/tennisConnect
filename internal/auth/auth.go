@@ -249,3 +249,7 @@ func (a *Service) RequestLink(w http.ResponseWriter, r *http.Request) {
 func (a *Service) validOrigin(r *http.Request) bool {
 	return httpapi.OriginAllowed(r, a.AppBaseURL)
 }
+
+func (a *Service) validFormOrigin(r *http.Request) bool {
+	return httpapi.OriginAllowedForm(r, a.AppBaseURL)
+}
