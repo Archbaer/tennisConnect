@@ -41,6 +41,15 @@ test('player session reads discovery from the real API', async ({ page, context 
   await expect(page.getByRole('heading', { name: /Navya/ })).toBeVisible();
 });
 
+test('player detail reads the real discovery API', async ({ page, context }) => {
+  await useSession(context, tokens().player);
+  await page.goto('/discover');
+  await page.getByRole('link', { name: 'View full profile' }).click();
+  await expect(page.getByRole('heading', { name: /Navya/ })).toBeVisible();
+  await expect(page.getByText('Tue 18:00–21:00')).toBeVisible();
+  await expect(page).toHaveURL(/\/discover\/[0-9a-f-]+\?radius=10$/);
+});
+
 test('banned session is limited to the appeal screen', async ({ page, context }) => {
   await useSession(context, tokens().banned);
   await page.goto('/discover');
