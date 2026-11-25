@@ -6,6 +6,7 @@
   import 'bootstrap-icons/font/bootstrap-icons.css';
   import '../app.css';
   import { online, watchConnectivity } from '#lib/offline';
+  import { unrevealedMatches } from '#lib/matchState';
   import { loadSession, session } from '#lib/session';
 
   let { children } = $props();
@@ -18,6 +19,10 @@
 
   function isActive(path: string): boolean {
     return page.url.pathname === path || page.url.pathname.startsWith(`${path}/`);
+  }
+
+  function isMatchReveal(path: string): boolean {
+    return /^\/matches\/[^/]+\/new$/.test(path);
   }
 
   onMount(() => {
@@ -40,7 +45,7 @@
   <meta name="description" content="Meet adult tennis players near you, safely." />
 </svelte:head>
 
-<div class="app-shell" class:with-tabs={$session === 'signed-in'}>
+<div class="app-shell" class:with-tabs={$session === 'signed-in' && !isMatchReveal(page.url.pathname)} class:match-reveal={isMatchReveal(page.url.pathname)}>
   <a class="skip-link" href="#main">Skip to content</a>
 
   <header class="site-header">
@@ -52,7 +57,7 @@
       <nav class="nav nav-pills desktop-nav" aria-label="Primary">
         {#if $session === 'signed-in'}
           <a class="nav-link" class:active={isActive('/discover')} aria-current={isActive('/discover') ? 'page' : undefined} href="/discover"><i class="bi bi-compass" aria-hidden="true"></i> Discover</a>
-          <a class="nav-link" class:active={isActive('/matches')} aria-current={isActive('/matches') ? 'page' : undefined} href="/matches"><i class="bi bi-people" aria-hidden="true"></i> Matches</a>
+          <a class="nav-link" class:active={isActive('/matches')} aria-current={isActive('/matches') ? 'page' : undefined} aria-label={$unrevealedMatches > 0 ? 'Matches, new match' : undefined} href="/matches"><i class="bi bi-people" aria-hidden="true"></i> Matches</a>
           <a class="nav-link" class:active={isActive('/profile')} aria-current={isActive('/profile') ? 'page' : undefined} href="/profile"><i class="bi bi-person" aria-hidden="true"></i> You</a>
           <a class="nav-link" class:active={isActive('/settings')} aria-current={isActive('/settings') ? 'page' : undefined} href="/settings"><i class="bi bi-sliders" aria-hidden="true"></i> Settings</a>
         {:else if $session === 'suspended'}
@@ -75,13 +80,13 @@
     {@render children()}
   </main>
 
-  {#if $session === 'signed-in'}
+  {#if $session === 'signed-in' && !isMatchReveal(page.url.pathname)}
     <nav class="tab-bar" aria-label="Primary mobile">
       <a href="/discover" class:active={isActive('/discover')} aria-current={isActive('/discover') ? 'page' : undefined}>
         <i class="bi bi-compass" aria-hidden="true"></i>
         <span>Discover</span>
       </a>
-      <a href="/matches" class:active={isActive('/matches')} aria-current={isActive('/matches') ? 'page' : undefined}>
+      <a href="/matches" class:active={isActive('/matches')} aria-current={isActive('/matches') ? 'page' : undefined} aria-label={$unrevealedMatches > 0 ? 'Matches, new match' : undefined}>
         <i class="bi bi-people" aria-hidden="true"></i>
         <span>Matches</span>
       </a>
@@ -195,6 +200,15 @@
 
   .tab-bar {
     display: none;
+  }
+
+  .match-reveal .desktop-nav,
+  .match-reveal .site-footer {
+    display: none;
+  }
+
+  .match-reveal main {
+    padding-bottom: 0;
   }
 
   @media (max-width: 767px) {

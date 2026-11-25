@@ -87,12 +87,19 @@ export type DiscoveryCard = {
   };
 };
 
+export type DiscoveryDetail = {
+  player: DiscoveryCard['player'] & {
+    availability: Availability[];
+  };
+};
+
 export type Match = {
   match_id: string;
   player_id: string;
   display_name: string;
   matched_at: string;
   has_instagram: boolean;
+  revealed: boolean;
   photo_urls: string[];
 };
 
