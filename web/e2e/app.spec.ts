@@ -40,6 +40,21 @@ test('discover shows a card and creates a mutual match', async ({ page }) => {
   await expect(page.getByRole('link', { name: 'Open match' })).toBeVisible();
 });
 
+test('discover safety dialog names the player and offers block', async ({ page }) => {
+  await page.route('**/api/v1/auth/session', (route) => route.fulfill({ status: 204, body: '' }));
+  await page.route('**/api/v1/discovery?**', (route) =>
+    route.fulfill({ json: { cards: [card], next_cursor: null } })
+  );
+  await page.goto('/discover');
+  await page.getByRole('button', { name: 'Safety options for Priya' }).click();
+  await expect(page.getByRole('heading', { name: 'Report Priya' })).toBeVisible();
+  await page.getByRole('button', { name: 'Block instead' }).click();
+  await expect(page.getByRole('heading', { name: 'Block Priya?' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Cancel' })).toBeFocused();
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.getByRole('dialog')).not.toBeVisible();
+});
+
 test('offline state is announced', async ({ page }) => {
   await page.goto('/');
   await page.evaluate(() => window.dispatchEvent(new Event('offline')));
