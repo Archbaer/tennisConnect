@@ -97,6 +97,20 @@ falls back to a court-green initials tile.
 - Area changes use the area sheet.
 - Photo grid, play times, area and settings remain reachable below.
 
+## Player detail and match reveal
+
+- Discover cards link to `/discover/[id]?radius=...`; the detail endpoint reuses
+  the same server-side visibility predicates and returns full bio and play-time
+  slots only while the player is visible.
+- The detail screen keeps the vertical card, pinned reactions and target-aware
+  safety button.
+- A new match goes to `/matches/[id]/new`; the reveal is a one-visit
+  court-deep/ball-yellow screen with the heading focused and a polite match
+  announcement. Instagram stays off this screen.
+- Match rows show a ball-yellow edge and “New match” until the viewer has seen
+  the reveal. The Matches tab accessible name gains “, new match” from an
+  in-memory store; no extra API polling.
+
 ## Safety actions
 
 Every report or block action has a target and a visible name.

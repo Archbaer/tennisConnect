@@ -15,6 +15,16 @@ const card = {
   }
 };
 
+const match = {
+  match_id: '22222222-2222-4222-8222-222222222222',
+  player_id: card.player.player_id,
+  display_name: card.player.display_name,
+  matched_at: new Date().toISOString(),
+  has_instagram: false,
+  revealed: false,
+  photo_urls: []
+};
+
 test.beforeEach(async ({ page }) => {
   await page.route('**/api/v1/auth/session', (route) => route.fulfill({ status: 401, body: '' }));
 });
@@ -33,11 +43,53 @@ test('discover shows a card and creates a mutual match', async ({ page }) => {
   await page.route('**/api/v1/reactions', (route) =>
     route.fulfill({ json: { matched: true, match_id: '22222222-2222-4222-8222-222222222222' } })
   );
+  await page.route('**/api/v1/matches/22222222-2222-4222-8222-222222222222/reveal', (route) =>
+    route.fulfill({ status: 204, body: '' })
+  );
+  await page.route('**/api/v1/matches/22222222-2222-4222-8222-222222222222', (route) =>
+    route.fulfill({ json: match })
+  );
   await page.goto('/discover');
   await expect(page.getByRole('heading', { name: 'Priya, 32' })).toBeVisible();
   await page.getByRole('button', { name: "I'd play" }).click();
-  await expect(page.getByRole('heading', { name: /you're both in/i })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Open match' })).toBeVisible();
+  await expect(page).toHaveURL(/\/matches\/22222222-2222-4222-8222-222222222222\/new$/);
+  await expect(page.getByRole('heading', { name: /you're both in/i })).toBeFocused();
+  await expect(page.getByRole('status').filter({ hasText: "It's a match. You and Priya both said yes." })).toBeVisible();
+});
+
+test('new matches are marked in the list and tab', async ({ page }) => {
+  await page.route('**/api/v1/auth/session', (route) => route.fulfill({ status: 204, body: '' }));
+  await page.route('**/api/v1/matches', (route) =>
+    route.fulfill({ json: { matches: [{ ...match, matched_at: new Date().toISOString() }] } })
+  );
+  await page.goto('/matches');
+  await expect(page.getByText('New match')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Matches, new match' }).first()).toBeVisible();
+});
+
+test('discover opens the full player detail', async ({ page }) => {
+  await page.route('**/api/v1/auth/session', (route) => route.fulfill({ status: 204, body: '' }));
+  await page.route('**/api/v1/discovery?**', (route) =>
+    route.fulfill({ json: { cards: [card], next_cursor: null } })
+  );
+  await page.route('**/api/v1/discovery/11111111-1111-4111-8111-111111111111?**', (route) =>
+    route.fulfill({
+      json: {
+        player: {
+          ...card.player,
+          availability: [
+            { weekday: 2, start: '18:00', end: '21:00' },
+            { weekday: 4, start: '18:00', end: '21:00' }
+          ]
+        }
+      }
+    })
+  );
+  await page.goto('/discover');
+  await page.getByRole('link', { name: 'View full profile' }).click();
+  await expect(page).toHaveURL(/\/discover\/11111111-1111-4111-8111-111111111111\?radius=10$/);
+  await expect(page.getByRole('heading', { name: 'Priya, 32' })).toBeVisible();
+  await expect(page.getByText('Tue 18:00–21:00')).toBeVisible();
 });
 
 test('discover safety dialog names the player and offers block', async ({ page }) => {
