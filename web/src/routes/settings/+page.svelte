@@ -31,11 +31,13 @@
 
   <div class="surface stack">
     <h2><i class="bi bi-shield-check me-2" aria-hidden="true"></i>Privacy and safety</h2>
-    <p class="muted">
+    <p class="muted mb-0">
       Your exact area, e-mail and date of birth are never returned by the API. Other players see a
       coarse area only through distance buckets. Instagram is disclosed only inside a live match.
     </p>
-    <a href="/report">Report a player</a>
+    <p class="muted mb-0">
+      To report or block someone, use the safety button on their Discover card or in your match.
+    </p>
   </div>
 
   <div class="surface stack">
