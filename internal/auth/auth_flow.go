@@ -16,12 +16,38 @@ import (
 )
 
 var confirmPage = template.Must(template.New("confirm").Parse(`<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Continue sign-in</title></head>
-<body><main><h1>Continue sign-in</h1><form method="post" action="/api/v1/auth/verify"><input type="hidden" name="token" value="{{.}}"><button type="submit">Continue</button></form></main></body></html>`))
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Continue sign-in</title>
+<style>
+:root{color-scheme:light;font-family:ui-sans-serif,system-ui,sans-serif;background:#f7f9f4;color:#0a1714}
+*{box-sizing:border-box}
+body{margin:0;min-height:100dvh;display:grid;place-items:center;padding:1.5rem;background:linear-gradient(160deg,#f7f9f4,#e7efe8)}
+main{width:min(100%,26rem);background:#fff;border:1px solid #d7e0d8;border-radius:28px;padding:1.5rem;box-shadow:0 18px 48px rgb(6 40 31 / 10%)}
+p{margin:0 0 .75rem;color:#4f625b;line-height:1.5}
+.eyebrow{margin:0 0 .5rem;color:#146b4a;font-size:.76rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase}
+h1{margin:0 0 .75rem;font-size:2rem;line-height:1.05;letter-spacing:-.03em}
+form{margin-top:1.25rem}
+button{width:100%;min-height:3rem;border:0;border-radius:999px;background:#0b3b2e;color:#fff;font:inherit;font-weight:700;cursor:pointer}
+button:hover{background:#06281f}
+</style></head>
+<body><main><p class="eyebrow">Tennis Connect</p><h1>Continue sign-in</h1><p>This link expires in 15 minutes and can be used once.</p><form method="post" action="/api/v1/auth/verify"><input type="hidden" name="token" value="{{.}}"><button type="submit">Continue</button></form></main></body></html>`))
 
 var registrationPage = template.Must(template.New("register").Parse(`<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Complete registration</title></head>
-<body><main><h1>Complete registration</h1><form method="post" action="/api/v1/auth/register"><input type="hidden" name="token" value="{{.}}"><label for="birth-date">Date of birth</label><input id="birth-date" name="birth_date" type="date" required><button type="submit">Create account</button></form></main></body></html>`))
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Complete registration</title>
+<style>
+:root{color-scheme:light;font-family:ui-sans-serif,system-ui,sans-serif;background:#f7f9f4;color:#0a1714}
+*{box-sizing:border-box}
+body{margin:0;min-height:100dvh;display:grid;place-items:center;padding:1.5rem;background:linear-gradient(160deg,#f7f9f4,#e7efe8)}
+main{width:min(100%,26rem);background:#fff;border:1px solid #d7e0d8;border-radius:28px;padding:1.5rem;box-shadow:0 18px 48px rgb(6 40 31 / 10%)}
+p{margin:0 0 .75rem;color:#4f625b;line-height:1.5}
+.eyebrow{margin:0 0 .5rem;color:#146b4a;font-size:.76rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase}
+h1{margin:0 0 .75rem;font-size:2rem;line-height:1.05;letter-spacing:-.03em}
+label{display:grid;gap:.35rem;font-weight:600}
+input{width:100%;min-height:2.9rem;padding:.6rem .8rem;border:1px solid #667a72;border-radius:14px;background:#fff;color:#0a1714;font:inherit}
+form{display:grid;gap:1rem;margin-top:1.25rem}
+button{width:100%;min-height:3rem;border:0;border-radius:999px;background:#0b3b2e;color:#fff;font:inherit;font-weight:700;cursor:pointer}
+button:hover{background:#06281f}
+</style></head>
+<body><main><p class="eyebrow">Tennis Connect · Adults only</p><h1>Confirm your age</h1><p>We ask once. Your date of birth is never shown to anyone.</p><form method="post" action="/api/v1/auth/register"><input type="hidden" name="token" value="{{.}}"><label for="birth-date">Date of birth<input id="birth-date" name="birth_date" type="date" required></label><button type="submit">Create account</button></form></main></body></html>`))
 
 type loginIdentity struct {
 	emailEncrypted []byte
@@ -36,7 +62,7 @@ func validAuthToken(token string) bool {
 func renderAuthPage(w http.ResponseWriter, page *template.Template, token string) {
 	httpapi.PreventCaching(w)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Header().Set("Content-Security-Policy", "default-src 'none'; form-action 'self'; base-uri 'none'")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(http.StatusOK)
 	_ = page.Execute(w, token)
