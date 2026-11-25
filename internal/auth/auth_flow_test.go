@@ -313,6 +313,27 @@ func TestRegisterRejectsMalformedBirthDate(t *testing.T) {
 	}
 }
 
+func TestVerifyLinkRedirectsBrowserForm(t *testing.T) {
+	auth, emails := newTestAuth(t)
+	insertTestUser(t, auth, "player@example.com")
+	token := requestMagicToken(t, auth, emails, "player@example.com")
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/auth/verify", strings.NewReader(url.Values{"token": {token}}.Encode()))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	request.Header.Set("Accept", "text/html,application/xhtml+xml")
+	request.RemoteAddr = "192.0.2.10:1234"
+	response := httptest.NewRecorder()
+	auth.VerifyLink(response, request)
+	if response.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", response.Code)
+	}
+	if location := response.Header().Get("Location"); location != auth.AppBaseURL+"/discover" {
+		t.Fatalf("location = %q", location)
+	}
+	if cookie := responseSessionCookie(t, response); cookie.Value == "" {
+		t.Fatal("redirect did not set a session cookie")
+	}
+}
+
 func TestRegistrationUsesEmailHMACConstraint(t *testing.T) {
 	auth, emails := newTestAuth(t)
 	insertTestUser(t, auth, "player@example.com")

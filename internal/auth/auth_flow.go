@@ -9,6 +9,7 @@ import (
 	"html/template"
 	"mime"
 	"net/http"
+	"strings"
 	"time"
 
 	"tennisconnect/internal/httpapi"
@@ -177,6 +178,10 @@ func (a *Service) VerifyLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	setSessionCookie(w, sessionToken, a.CookieSecure)
+	if strings.Contains(r.Header.Get("Accept"), "text/html") {
+		http.Redirect(w, r, a.AppBaseURL+"/discover", http.StatusSeeOther)
+		return
+	}
 	httpapi.WriteJSON(w, http.StatusOK, map[string]string{"message": "signed in"})
 }
 
