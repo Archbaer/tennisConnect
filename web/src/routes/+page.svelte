@@ -61,11 +61,7 @@
 
     <div class="col-lg-6">
       <div class="court-card" aria-hidden="true">
-        <div class="court-net"></div>
-        <div class="court-line line-one"></div>
-        <div class="court-line line-two"></div>
-        <div class="hero-ball"></div>
-        <div class="ball-shadow"></div>
+        <img class="court-art" src="/court-hero.svg" alt="" />
         <div class="scoreboard">
           <span class="score">Tue, Thu</span>
           <span class="score">Evenings</span>
@@ -169,81 +165,39 @@
   .court-card {
     position: relative;
     min-height: 24rem;
-    border-radius: 26px;
-    background: linear-gradient(145deg, var(--court) 0%, var(--court-deep) 62%, #03191e 100%);
+    border-radius: var(--radius);
+    background: var(--court-deep);
     overflow: hidden;
     box-shadow: var(--shadow);
     isolation: isolate;
   }
 
-  .court-card::before {
+  .court-card::after {
     content: '';
     position: absolute;
-    inset: 12% 9% 18%;
-    border: 2px solid rgb(216 255 62 / 38%);
-    transform: perspective(600px) rotateX(14deg);
+    inset: 0;
+    background: linear-gradient(to top, rgb(6 40 31 / 38%), transparent 45%);
+    pointer-events: none;
   }
 
-  .court-net {
+  .court-art {
     position: absolute;
-    left: 9%;
-    right: 9%;
-    top: 47%;
-    height: 2px;
-    background: repeating-linear-gradient(to right, rgb(247 249 244 / 55%) 0 8px, transparent 8px 13px);
-  }
-
-  .court-line {
-    position: absolute;
-    border: 2px solid rgb(247 249 244 / 22%);
-  }
-
-  .line-one {
-    inset: 20% 24% 28%;
-    transform: perspective(500px) rotateX(18deg);
-  }
-
-  .line-two {
-    left: 50%;
-    top: 12%;
-    bottom: 18%;
-    width: 0;
-    border-width: 0 0 0 2px;
-  }
-
-  .hero-ball {
-    position: absolute;
-    right: 17%;
-    top: 18%;
-    width: 4.4rem;
-    aspect-ratio: 1;
-    border-radius: 50%;
-    background: radial-gradient(circle at 35% 30%, #f3ffb1, var(--ball) 55%, var(--ball-deep));
-    box-shadow: inset -8px -10px 18px rgb(6 38 45 / 18%);
-    animation: ball-bounce 2.8s ease-in-out infinite;
-  }
-
-  .ball-shadow {
-    position: absolute;
-    right: 19%;
-    top: 34%;
-    width: 3.4rem;
-    height: 0.8rem;
-    border-radius: 50%;
-    background: rgb(0 0 0 / 28%);
-    filter: blur(4px);
-    animation: shadow-pulse 2.8s ease-in-out infinite;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
 
   .scoreboard {
     position: absolute;
     left: 1.25rem;
     bottom: 1.25rem;
+    z-index: 1;
     display: grid;
     gap: 0.5rem;
     padding: 0.9rem 1rem;
-    border-radius: 14px;
-    background: rgb(3 25 30 / 72%);
+    border-radius: var(--radius-control);
+    background: rgb(3 25 30 / 78%);
     border: 1px solid rgb(216 255 62 / 25%);
     color: var(--ball);
   }
@@ -264,17 +218,6 @@
     padding-bottom: 4rem;
   }
 
-  @keyframes shadow-pulse {
-    0%,
-    100% {
-      transform: scaleX(1);
-      opacity: 0.4;
-    }
-    50% {
-      transform: scaleX(0.7);
-      opacity: 0.2;
-    }
-  }
 
   @media (max-width: 991px) {
     .court-card {

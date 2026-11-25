@@ -1,33 +1,36 @@
 @import '@fontsource-variable/archivo';
 
 :root {
-  --court: #0b3b45;
-  --court-deep: #06262d;
-  --court-light: #147284;
+  --court: #0b3b2e;
+  --court-deep: #06281f;
+  --court-light: #146b4a;
   --ball: #d8ff3e;
   --ball-deep: #b8df22;
-  --clay: #c65a3a;
-  --clay-deep: #9e4026;
+  --clay: #b94e2f;
+  --clay-deep: #8f3b24;
   --sky: #2e9cc4;
+  --grass: #6fa84a;
   --paper: #f7f9f4;
   --surface: #ffffff;
   --ink: #0a1714;
   --muted: #4f625b;
   --line: #d7e0d8;
   --control-border: #667a72;
-  --radius: 18px;
-  --shadow: 0 18px 48px rgb(6 38 45 / 10%);
-  --shadow-small: 0 8px 22px rgb(6 38 45 / 8%);
+  --radius: 28px;
+  --radius-control: 14px;
+  --radius-chip: 10px;
+  --shadow: 0 18px 48px rgb(6 40 31 / 10%);
+  --shadow-small: 0 8px 22px rgb(6 40 31 / 8%);
 
-  --bs-primary: #0b3b45;
-  --bs-primary-rgb: 11, 59, 69;
-  --bs-link-color: #0b3b45;
-  --bs-link-hover-color: #06262d;
+  --bs-primary: #0b3b2e;
+  --bs-primary-rgb: 11, 59, 46;
+  --bs-link-color: #146b4a;
+  --bs-link-hover-color: #06281f;
   --bs-body-color: #0a1714;
   --bs-body-bg: #f7f9f4;
   --bs-border-color: #d7e0d8;
-  --bs-border-radius: 12px;
-  --bs-border-radius-lg: 18px;
+  --bs-border-radius: 14px;
+  --bs-border-radius-lg: 28px;
 
   font-family: 'Archivo Variable', Archivo, system-ui, sans-serif;
   color: var(--ink);
@@ -46,24 +49,44 @@ html {
 body {
   margin: 0;
   min-width: 320px;
-  min-height: 100vh;
+  min-height: 100dvh;
   background: var(--paper);
   color: var(--ink);
   font-size: 17px;
   line-height: 1.45;
 }
 
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.app-shell > main {
+  flex: 1;
+}
+
 body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, rgb(11 59 46 / 4%) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(11 59 46 / 4%) 1px, transparent 1px);
+  background-size: 96px 96px;
+  mask-image: linear-gradient(to bottom, black, transparent 82%);
+}
+
+body::after {
   content: '';
   position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background-image:
-    linear-gradient(to right, rgb(11 59 69 / 4%) 1px, transparent 1px),
-    linear-gradient(to bottom, rgb(11 59 69 / 4%) 1px, transparent 1px);
-  background-size: 96px 96px;
-  mask-image: linear-gradient(to bottom, black, transparent 82%);
+  background: url('/court-hero.svg') center / cover no-repeat;
+  opacity: 0.035;
 }
 
 a {
@@ -202,7 +225,7 @@ textarea,
   min-height: 2.9rem;
   padding: 0.6rem 0.8rem;
   border: 1px solid var(--control-border);
-  border-radius: 12px;
+  border-radius: var(--radius-control);
   background: var(--surface);
   color: var(--ink);
   font: inherit;
@@ -357,12 +380,42 @@ button:disabled,
   font-size: 0.85rem;
 }
 
+.icon-button {
+  display: inline-grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: 1px solid rgb(255 255 255 / 55%);
+  border-radius: 999px;
+  background: rgb(6 40 31 / 78%);
+  color: white;
+  backdrop-filter: blur(8px);
+}
+
+.icon-button:hover {
+  background: var(--court-deep);
+  color: white;
+  transform: none;
+}
+
+.icon-button.dark {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--court);
+}
+
+.icon-button.dark:hover {
+  background: var(--court);
+  color: white;
+}
+
 .chip {
   display: inline-flex;
   align-items: center;
   min-height: 1.7rem;
   padding: 0.15rem 0.65rem;
-  border-radius: 999px;
+  border-radius: var(--radius-chip);
   background: #e8efea;
   color: var(--ink);
   font-size: 0.78rem;
@@ -383,14 +436,14 @@ button:disabled,
   border-left: 5px solid var(--clay);
   background: #fbefeb;
   padding: 0.95rem 1rem;
-  border-radius: 0 12px 12px 0;
+  border-radius: 0 var(--radius-control) var(--radius-control) 0;
 }
 
 .notice {
   border-left: 5px solid var(--court-light);
   background: #e8f4f6;
   padding: 0.95rem 1rem;
-  border-radius: 0 12px 12px 0;
+  border-radius: 0 var(--radius-control) var(--radius-control) 0;
 }
 
 .match-flood {
@@ -425,7 +478,7 @@ button:disabled,
   width: 100%;
   aspect-ratio: 4 / 5;
   object-fit: cover;
-  border-radius: 14px;
+  border-radius: 20px;
   background: #e5ebe6;
 }
 
