@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
+  import { goto } from '$app/navigation';
   import { ApiError, apiJSON, distanceLabel, type DiscoveryCard } from '#lib/api';
+  import { noteMatchCreated } from '#lib/matchState';
   import { online } from '#lib/offline';
   import { loadRadius, saveRadius } from '#lib/preferences';
   import SafetyDialog from '#lib/SafetyDialog.svelte';
@@ -11,7 +13,6 @@
   let loading = true;
   let error = '';
   let blockedReason = '';
-  let matchID: string | null = null;
   let confirmPass: string | null = null;
   let acting: string | null = null;
   let safetyTarget: DiscoveryCard | null = null;
@@ -58,7 +59,8 @@
       advance(targetID);
       confirmPass = null;
       if (result.matched && result.match_id) {
-        matchID = result.match_id;
+        noteMatchCreated();
+        await goto(`/matches/${result.match_id}/new`);
       }
     } catch (problem) {
       error = problem instanceof Error ? problem.message : 'That reaction did not save.';
@@ -112,18 +114,6 @@
       </select>
     </label>
   </div>
-
-  {#if matchID}
-    <div class="match-flood stack" role="status">
-      <p class="score mb-0">It's a match</p>
-      <h2 class="display-6">You're both in.</h2>
-      <p>Open the match to see their week and, if they choose, their Instagram.</p>
-      <div class="d-flex flex-wrap gap-2">
-        <a class="btn btn-primary" href={`/matches/${matchID}`}>Open match</a>
-        <button class="btn btn-outline-light" onclick={() => (matchID = null)}>Keep looking</button>
-      </div>
-    </div>
-  {/if}
 
   {#if blockedReason}
     <div class="alert alert-warning stack" role="alert">
@@ -206,6 +196,9 @@
         </dl>
 
         {#if card.player.bio}<p class="bio muted">{card.player.bio}</p>{/if}
+        <a class="profile-link" href={`/discover/${card.player.player_id}?radius=${radius}`}>
+          View full profile
+        </a>
 
         {#if error}
           <p class="alert alert-danger py-2 mb-0" role="alert">{error}</p>
@@ -416,6 +409,13 @@
     margin: 0;
     text-align: right;
     font-weight: 700;
+  }
+
+  .profile-link {
+    justify-self: start;
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 0.18em;
   }
 
   .bio {

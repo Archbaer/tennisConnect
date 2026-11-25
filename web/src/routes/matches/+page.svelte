@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import { apiJSON, relativeDate, type Match } from '#lib/api';
+  import { setMatches } from '#lib/matchState';
   import SafetyDialog from '#lib/SafetyDialog.svelte';
 
   let matches: Match[] = [];
@@ -12,6 +13,7 @@
   onMount(async () => {
     try {
       matches = (await apiJSON<{ matches: Match[] }>('/api/v1/matches')).matches;
+      setMatches(matches);
     } catch (problem) {
       error = problem instanceof Error ? problem.message : 'Matches are unavailable.';
     } finally {
@@ -21,6 +23,7 @@
 
   function removeMatch(id: string) {
     matches = matches.filter((match) => match.match_id !== id);
+    setMatches(matches);
   }
 
   async function openSafety(match: Match, mode: 'report' | 'block') {
@@ -57,7 +60,7 @@
   {:else}
     <ul class="match-list">
       {#each matches as match (match.match_id)}
-        <li class="match-row">
+        <li class="match-row" class:new-match={!match.revealed}>
           <a href={`/matches/${match.match_id}`} class="match-link">
             {#if match.photo_urls.length}
               <img class="photo thumb" src={match.photo_urls[0]} alt="" />
@@ -67,6 +70,7 @@
             <span class="match-copy">
               <strong>{match.display_name}</strong>
               <span class="muted">Matched {relativeDate(match.matched_at)}</span>
+              {#if !match.revealed}<span class="chip optic">New match</span>{/if}
               <span class="chip" class:optic={match.has_instagram}>
                 <i class="bi bi-instagram me-1" aria-hidden="true"></i>{match.has_instagram ? 'Instagram available' : 'No Instagram'}
               </span>
@@ -116,6 +120,7 @@
     align-items: center;
     gap: 0.5rem;
     border: 1px solid var(--line);
+    border-left: 4px solid transparent;
     border-radius: var(--radius);
     background: var(--surface);
     box-shadow: var(--shadow-small);
@@ -154,5 +159,9 @@
 
   .match-copy .chip {
     justify-self: start;
+  }
+
+  .match-row.new-match {
+    border-left-color: var(--ball);
   }
 </style>
