@@ -188,7 +188,7 @@ func (s *Service) ConfirmLink(w http.ResponseWriter, r *http.Request) {
 // VerifyLink consumes the reviewer token and starts an un-elevated session.
 func (s *Service) VerifyLink(w http.ResponseWriter, r *http.Request) {
 	httpapi.PreventCaching(w)
-	if !httpapi.OriginAllowed(r, s.AppBaseURL) {
+	if !httpapi.OriginAllowedForm(r, s.AppBaseURL) {
 		httpapi.WriteError(w, http.StatusForbidden, "forbidden")
 		return
 	}

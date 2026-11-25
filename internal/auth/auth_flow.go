@@ -101,7 +101,7 @@ func clearSessionCookie(w http.ResponseWriter, secure bool) {
 
 func (a *Service) VerifyLink(w http.ResponseWriter, r *http.Request) {
 	httpapi.PreventCaching(w)
-	if !a.validOrigin(r) {
+	if !a.validFormOrigin(r) {
 		httpapi.WriteError(w, http.StatusForbidden, "forbidden")
 		return
 	}
@@ -182,7 +182,7 @@ func (a *Service) VerifyLink(w http.ResponseWriter, r *http.Request) {
 
 func (a *Service) Register(w http.ResponseWriter, r *http.Request) {
 	httpapi.PreventCaching(w)
-	if !a.validOrigin(r) {
+	if !a.validFormOrigin(r) {
 		httpapi.WriteError(w, http.StatusForbidden, "forbidden")
 		return
 	}
