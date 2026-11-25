@@ -61,6 +61,24 @@ test('reviewer session without MFA cannot read the queue', async ({ page, contex
   await expect(page.getByRole('heading', { name: 'Second factor' })).toBeVisible();
 });
 
+test('settings opens area without entering onboarding', async ({ page, context }) => {
+  await useSession(context, tokens().player);
+  await page.goto('/settings');
+  await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
+  await page.getByRole('button', { name: 'Area and discovery radius' }).click();
+  await expect(page.getByRole('heading', { name: 'Area and distance' })).toBeVisible();
+  await expect(page.getByText('Battersea').first()).toBeVisible();
+  await expect(page).toHaveURL('/settings');
+});
+
+test('profile preview opens the player card', async ({ page, context }) => {
+  await useSession(context, tokens().player);
+  await page.goto('/profile');
+  await page.getByRole('button', { name: 'Preview as another player' }).click();
+  await expect(page.getByRole('heading', { name: 'Your card' })).toBeVisible();
+  await expect(page.getByRole('dialog').locator('h3')).toContainText('E2E Player');
+});
+
 test('denied location permission falls back to manual area', async ({ page, context }) => {
   await useSession(context, tokens().player);
   await page.addInitScript(() => {
