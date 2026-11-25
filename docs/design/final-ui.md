@@ -71,6 +71,32 @@ No horizontal split at any breakpoint. On mobile the card fits above the bottom
 tab bar; on desktop it stays in a centered narrow column. A failed photo URL
 falls back to a court-green initials tile.
 
+## Area and matching sheets
+
+- Area editing is a focused native dialog opened from Settings and the profile.
+  It contains the coarse area form, geolocation fallback and the discovery
+  radius. It never routes an existing player through onboarding.
+- Matching is a focused dialog for gender preference, age range and skill
+  tolerance. It fetches the existing profile, merges the changed fields and
+  saves the full profile.
+- Onboarding keeps only first-run setup. Area editing after setup stays in the
+  sheets.
+
+## Settings
+
+- Centered page header and section headings; centered row actions.
+- Sections: card, matching, privacy/safety, data, about and session.
+- Long privacy prose stays left-aligned for readability.
+- No targetless report action.
+
+## Profile
+
+- A visual player card at the top: full-width photo fallback, name/age, skill,
+  area chip and primary actions.
+- Preview as another player opens the same card in a native dialog.
+- Area changes use the area sheet.
+- Photo grid, play times, area and settings remain reachable below.
+
 ## Safety actions
 
 Every report or block action has a target and a visible name.
