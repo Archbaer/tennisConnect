@@ -2,6 +2,7 @@
   import { onMount, tick } from 'svelte';
   import { ApiError, apiJSON, distanceLabel, type DiscoveryCard } from '#lib/api';
   import { online } from '#lib/offline';
+  import { loadRadius, saveRadius } from '#lib/preferences';
   import SafetyDialog from '#lib/SafetyDialog.svelte';
 
   let cards: DiscoveryCard[] = [];
@@ -18,7 +19,10 @@
 
   $: card = cards[0];
 
-  onMount(load);
+  onMount(() => {
+    radius = loadRadius();
+    load();
+  });
 
   async function load(reset = true) {
     loading = true;
@@ -100,7 +104,7 @@
     </div>
     <label class="radius">
       <span class="score">Radius</span>
-      <select class="form-select" bind:value={radius} onchange={() => load(true)}>
+      <select class="form-select" bind:value={radius} onchange={() => { saveRadius(radius); load(true); }}>
         <option value={5}>5 miles</option>
         <option value={10}>10 miles</option>
         <option value={20}>20 miles</option>

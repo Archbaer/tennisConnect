@@ -345,11 +345,19 @@ button:disabled,
 }
 
 .btn-outline-secondary {
+  background: transparent;
+  color: var(--court);
+  border-color: var(--control-border);
   --bs-btn-color: var(--court);
   --bs-btn-border-color: var(--control-border);
   --bs-btn-hover-bg: var(--court);
   --bs-btn-hover-border-color: var(--court);
   --bs-btn-border-radius: 999px;
+}
+
+.btn-outline-secondary:hover {
+  background: var(--court);
+  color: white;
 }
 
 .btn-outline-danger {
