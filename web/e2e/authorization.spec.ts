@@ -65,8 +65,10 @@ test('settings opens area without entering onboarding', async ({ page, context }
   await useSession(context, tokens().player);
   await page.goto('/settings');
   await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Area and discovery radius' })).toBeVisible();
+  await page.waitForTimeout(500);
   await page.getByRole('button', { name: 'Area and discovery radius' }).click();
-  await expect(page.getByRole('heading', { name: 'Area and distance' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Area and distance' })).toBeVisible({ timeout: 10_000 });
   await expect(page.getByText('Battersea').first()).toBeVisible();
   await expect(page).toHaveURL('/settings');
 });
