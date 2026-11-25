@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { apiJSON, relativeDate, type Match } from '#lib/api';
+  import SafetyDialog from '#lib/SafetyDialog.svelte';
 
   let match: Match | null = null;
   let matchID = '';
@@ -9,7 +10,7 @@
   let error = '';
   let copied = '';
   let loading = true;
-  let confirmingBlock = false;
+  let safety: { openReport: () => Promise<void>; openBlock: () => Promise<void> };
 
   onMount(async () => {
     matchID = window.location.pathname.split('/').filter(Boolean).pop() ?? '';
@@ -39,16 +40,11 @@
     setTimeout(() => (copied = ''), 2500);
   }
 
-  async function block() {
-    if (!match) return;
-    try {
-      await apiJSON('/api/v1/blocks', {
-        method: 'POST',
-        body: JSON.stringify({ target_id: match.player_id })
-      });
-      await goto('/matches');
-    } catch (problem) {
-      error = problem instanceof Error ? problem.message : 'We could not block that player.';
+  async function openSafety(mode: 'report' | 'block') {
+    if (mode === 'block') {
+      await safety.openBlock();
+    } else {
+      await safety.openReport();
     }
   }
 </script>
@@ -127,25 +123,22 @@
     <div class="surface stack">
       <h2>Safety</h2>
       <p class="muted">Blocking closes the match for both of you and stops new photo and handle access.</p>
-      {#if confirmingBlock}
-        <div class="alert alert-danger stack" role="alert">
-          <p class="mb-0">Block {match.display_name}? You won't see each other in Discover. The match closes.</p>
-          <div class="d-flex gap-2">
-            <button class="btn btn-danger" onclick={block}>Block</button>
-            <button class="btn btn-outline-secondary" onclick={() => (confirmingBlock = false)}>Cancel</button>
-          </div>
-        </div>
-      {:else}
-        <div class="d-flex flex-wrap gap-2">
-          <a class="btn btn-outline-secondary" href={`/report?target=${match.player_id}`}>
-            <i class="bi bi-flag" aria-hidden="true"></i> Report
-          </a>
-          <button class="btn btn-outline-danger" onclick={() => (confirmingBlock = true)}>
-            <i class="bi bi-slash-circle" aria-hidden="true"></i> Block
-          </button>
-        </div>
-      {/if}
+      <div class="d-flex flex-wrap gap-2">
+        <button class="btn btn-outline-secondary" onclick={() => openSafety('report')}>
+          <i class="bi bi-flag" aria-hidden="true"></i> Report {match.display_name}
+        </button>
+        <button class="btn btn-outline-danger" onclick={() => openSafety('block')}>
+          <i class="bi bi-slash-circle" aria-hidden="true"></i> Block {match.display_name}
+        </button>
+      </div>
     </div>
+
+    <SafetyDialog
+      bind:this={safety}
+      targetId={match.player_id}
+      targetName={match.display_name}
+      onBlocked={() => goto('/matches')}
+    />
   {/if}
 </section>
 
