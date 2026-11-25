@@ -1,11 +1,23 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { tick } from 'svelte';
   import { apiJSON } from '#lib/api';
 
-  let confirmed = false;
   let error = '';
   let recoverUntil = '';
   let deleting = false;
+  let dialog: HTMLDialogElement;
+  let cancelButton: HTMLButtonElement;
+
+  async function openConfirm() {
+    if (!dialog.open) dialog.showModal();
+    await tick();
+    cancelButton?.focus();
+  }
+
+  function closeConfirm() {
+    dialog.close();
+  }
 
   async function remove() {
     error = '';
@@ -14,6 +26,7 @@
       const result = await apiJSON<{ recover_until: string }>('/api/v1/account', {
         method: 'DELETE'
       });
+      dialog.close();
       recoverUntil = result.recover_until;
       setTimeout(() => goto('/'), 2500);
     } catch (problem) {
@@ -51,30 +64,64 @@
     {#if error}
       <p class="alert-box" role="alert">{error}</p>
     {/if}
-    <label class="confirm">
-      <input type="checkbox" bind:checked={confirmed} />
-      I understand this hides my account now and deletes it after 30 days.
-    </label>
     <div class="row">
-      <button class="btn btn-danger" disabled={!confirmed || deleting} onclick={remove}>
+      <button class="btn btn-danger" disabled={deleting} onclick={openConfirm}>
         {deleting ? 'Deleting…' : 'Delete my account'}
       </button>
-      <a class="btn btn-outline-secondary" href="/settings">Cancel</a>
+      <a class="btn btn-outline-secondary" href="/settings">Keep my account</a>
     </div>
   {/if}
 </section>
 
+<dialog bind:this={dialog} class="delete-dialog" aria-labelledby="delete-title" aria-describedby="delete-description">
+  <div class="dialog-head">
+    <div>
+      <p class="score mb-1">Confirm</p>
+      <h2 id="delete-title" class="mb-0">Delete your account?</h2>
+    </div>
+  </div>
+  <p id="delete-description">
+    Your profile is hidden now and deleted after 30 days. Signing in before then restores it.
+  </p>
+  {#if error}<p class="alert-box" role="alert">{error}</p>{/if}
+  <div class="dialog-actions">
+    <button class="btn btn-danger" type="button" onclick={remove} disabled={deleting}>
+      {deleting ? 'Deleting…' : 'Delete my account'}
+    </button>
+    <button class="btn btn-outline-secondary" type="button" bind:this={cancelButton} onclick={closeConfirm}>
+      Cancel
+    </button>
+  </div>
+</dialog>
+
 <style>
-  .confirm {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.6rem;
-    font-weight: 400;
+  .delete-dialog {
+    width: min(100% - 2rem, 30rem);
+    margin: auto;
+    padding: 1.5rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: 0 28px 80px rgb(6 40 31 / 28%);
   }
 
-  .confirm input {
-    width: auto;
-    min-height: auto;
-    margin-top: 0.25rem;
+  .delete-dialog::backdrop {
+    background: rgb(6 40 31 / 55%);
+    backdrop-filter: blur(3px);
+  }
+
+  .dialog-head {
+    margin-bottom: 1rem;
+  }
+
+  .dialog-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .dialog-actions .btn {
+    flex: 1 1 10rem;
   }
 </style>
