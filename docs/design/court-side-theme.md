@@ -1,12 +1,12 @@
 # Court side theme
 
-Active visual direction for the SvelteKit client. Supersedes the *Match ink*
-visual direction in `v1-ux-spec.md`; screen structure and accessibility rules
-still apply.
+Active visual direction for the SvelteKit client. The implemented layout,
+palette, radius and app shell are frozen in `final-ui.md`. This file keeps the
+original direction; `final-ui.md` wins where they differ.
 
 ## Direction
 
-Vibrant club tennis, not a generic dashboard. Court teal, ball yellow, clay
+Vibrant club tennis, not a generic dashboard. Court green, ball yellow, clay
 accents, chalk geometry. Security stays louder than decoration: no private data
 in the browser, no third-party assets, no client-side authorization.
 
@@ -22,13 +22,13 @@ in the browser, no third-party assets, no client-side authorization.
 
 | Token | Value | Use |
 | --- | --- | --- |
-| `--court` | `#0b3b45` | Primary actions, nav |
-| `--court-deep` | `#06262d` | Match reveal, footer |
-| `--court-light` | `#147284` | Notices |
+| `--court` | `#0b3b2e` | Primary actions, nav |
+| `--court-deep` | `#06281f` | Match reveal, footer |
+| `--court-light` | `#146b4a` | Notices, links |
 | `--ball` | `#d8ff3e` | Match accent, active markers |
 | `--ball-deep` | `#b8df22` | Ball shading |
-| `--clay` | `#c65a3a` | Destructive actions |
-| `--clay-deep` | `#9e4026` | Destructive hover/text |
+| `--clay` | `#b94e2f` | Destructive fill |
+| `--clay-deep` | `#8f3b24` | Destructive hover/text |
 | `--sky` | `#2e9cc4` | Focus ring |
 | `--paper` | `#f7f9f4` | Page background |
 | `--ink` | `#0a1714` | Body text |
@@ -63,8 +63,14 @@ Rules:
 - Grid, forms, buttons, alerts, badges, progress, utilities.
 - Custom classes layer over Bootstrap, not replace it.
 - `app.css` loads after Bootstrap and owns tokens and component overrides.
-- Header uses Bootstrap nav pills; footer uses flex utilities.
+- Desktop uses Bootstrap nav pills; mobile uses a fixed bottom tab bar.
+- The footer is pushed to the bottom by the app shell.
 - No Bootstrap JS components.
+
+## Implementation
+
+See `final-ui.md` for the implemented card layout, palette, radius scale,
+safety dialogs and court background.
 
 ## Security constraints
 

@@ -104,6 +104,7 @@ flowchart LR
 - [Security model](docs/security.md)
 - [Deployment](docs/deploy.md)
 - [Pentest scope](docs/pentest-scope.md)
+- [Final UI (Court side v2)](docs/design/final-ui.md)
 - [Court side theme](docs/design/court-side-theme.md)
 - [UX specification](docs/design/v1-ux-spec.md)
 - [CI and branch protection](docs/ci.md)
