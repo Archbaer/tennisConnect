@@ -58,6 +58,7 @@ type matchRow struct {
 	DisplayName  string
 	MatchedAt    time.Time
 	HasInstagram bool
+	Revealed     bool
 }
 
 type matchListRow struct {
@@ -66,6 +67,7 @@ type matchListRow struct {
 	DisplayName  string    `json:"display_name"`
 	MatchedAt    time.Time `json:"matched_at"`
 	HasInstagram bool      `json:"has_instagram"`
+	Revealed     bool      `json:"revealed"`
 	PhotoURLs    []string  `json:"photo_urls"`
 }
 
@@ -79,6 +81,7 @@ type matchDetailResponse struct {
 	DisplayName  string    `json:"display_name"`
 	MatchedAt    time.Time `json:"matched_at"`
 	HasInstagram bool      `json:"has_instagram"`
+	Revealed     bool      `json:"revealed"`
 	PhotoURLs    []string  `json:"photo_urls"`
 }
 
@@ -276,6 +279,7 @@ func (s *Service) List(w http.ResponseWriter, r *http.Request, userID string) {
 			DisplayName:  match.DisplayName,
 			MatchedAt:    match.MatchedAt,
 			HasInstagram: match.HasInstagram,
+			Revealed:     match.Revealed,
 			PhotoURLs:    photoURLs,
 		})
 	}
@@ -327,8 +331,69 @@ func (s *Service) Detail(w http.ResponseWriter, r *http.Request, userID string) 
 		DisplayName:  match.DisplayName,
 		MatchedAt:    match.MatchedAt,
 		HasInstagram: match.HasInstagram,
+		Revealed:     match.Revealed,
 		PhotoURLs:    photoURLs,
 	})
+}
+
+// Reveal marks a match as seen by one participant. It is idempotent and writes
+// at most once per user per match.
+func (s *Service) Reveal(w http.ResponseWriter, r *http.Request, userID string) {
+	httpapi.PreventCaching(w)
+	if !httpapi.OriginAllowed(r, s.AppBaseURL) {
+		httpapi.WriteError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	matchID := strings.ToLower(r.PathValue("id"))
+	if !validUUID(matchID) {
+		httpapi.WriteError(w, http.StatusNotFound, "match not found")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), requestBudget)
+	defer cancel()
+	result, err := s.DB.ExecContext(ctx, `
+		INSERT INTO match_reveals (match_id, user_id)
+		SELECT m.id, $2
+		FROM matches m
+		JOIN users u ON u.id = $2 AND u.deleted_at IS NULL AND u.banned_at IS NULL
+		WHERE m.id = $1
+			AND (m.user_low = $2 OR m.user_high = $2)
+			AND NOT EXISTS (
+				SELECT 1 FROM blocks
+				WHERE (blocker_id = m.user_low AND blocked_id = m.user_high)
+					OR (blocker_id = m.user_high AND blocked_id = m.user_low)
+			)
+		ON CONFLICT DO NOTHING`, matchID, userID)
+	if err != nil {
+		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+		return
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+		return
+	}
+	if affected == 0 {
+		var visible bool
+		if err := s.DB.QueryRowContext(ctx, `
+			SELECT EXISTS (
+				SELECT 1 FROM matches m
+				WHERE m.id = $1 AND (m.user_low = $2 OR m.user_high = $2)
+					AND NOT EXISTS (
+						SELECT 1 FROM blocks
+						WHERE (blocker_id = m.user_low AND blocked_id = m.user_high)
+							OR (blocker_id = m.user_high AND blocked_id = m.user_low)
+					)
+			)`, matchID, userID).Scan(&visible); err != nil {
+			httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+			return
+		}
+		if !visible {
+			httpapi.WriteError(w, http.StatusNotFound, "match not found")
+			return
+		}
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // Instagram serves GET /api/v1/matches/{id}/instagram. The handle is fetched on
@@ -439,10 +504,12 @@ func (s *Service) Block(w http.ResponseWriter, r *http.Request, userID string) {
 
 const liveMatchesQuery = `
 SELECT m.id, CASE WHEN m.user_low = $1 THEN m.user_high ELSE m.user_low END,
-	p.display_name, m.matched_at, p.instagram_handle IS NOT NULL
+	p.display_name, m.matched_at, p.instagram_handle IS NOT NULL,
+	COALESCE(mr.revealed_at IS NOT NULL, false)
 FROM matches m
 JOIN profiles p ON p.user_id = CASE WHEN m.user_low = $1 THEN m.user_high ELSE m.user_low END
 JOIN users u ON u.id = p.user_id AND u.deleted_at IS NULL AND u.banned_at IS NULL
+LEFT JOIN match_reveals mr ON mr.match_id = m.id AND mr.user_id = $1
 WHERE (m.user_low = $1 OR m.user_high = $1)
 	AND NOT EXISTS (
 		SELECT 1 FROM blocks
@@ -453,10 +520,12 @@ ORDER BY m.matched_at DESC, m.id`
 
 const detailMatchQuery = `
 SELECT m.id, CASE WHEN m.user_low = $2 THEN m.user_high ELSE m.user_low END,
-	p.display_name, m.matched_at, p.instagram_handle IS NOT NULL
+	p.display_name, m.matched_at, p.instagram_handle IS NOT NULL,
+	COALESCE(mr.revealed_at IS NOT NULL, false)
 FROM matches m
 JOIN profiles p ON p.user_id = CASE WHEN m.user_low = $2 THEN m.user_high ELSE m.user_low END
 JOIN users u ON u.id = p.user_id AND u.deleted_at IS NULL AND u.banned_at IS NULL
+LEFT JOIN match_reveals mr ON mr.match_id = m.id AND mr.user_id = $2
 WHERE m.id = $1
 	AND (m.user_low = $2 OR m.user_high = $2)
 	AND NOT EXISTS (
@@ -474,7 +543,7 @@ ORDER BY owner_id, display_order`
 func loadMatch(ctx context.Context, tx *sql.Tx, userID, matchID string) (matchRow, bool, error) {
 	var match matchRow
 	err := tx.QueryRowContext(ctx, detailMatchQuery, matchID, userID).Scan(
-		&match.MatchID, &match.OtherID, &match.DisplayName, &match.MatchedAt, &match.HasInstagram)
+		&match.MatchID, &match.OtherID, &match.DisplayName, &match.MatchedAt, &match.HasInstagram, &match.Revealed)
 	if errors.Is(err, sql.ErrNoRows) {
 		return matchRow{}, false, nil
 	}
@@ -490,7 +559,7 @@ func scanMatches(rows *sql.Rows) ([]matchRow, error) {
 	for rows.Next() {
 		var match matchRow
 		if err := rows.Scan(&match.MatchID, &match.OtherID, &match.DisplayName,
-			&match.MatchedAt, &match.HasInstagram); err != nil {
+			&match.MatchedAt, &match.HasInstagram, &match.Revealed); err != nil {
 			return nil, err
 		}
 		matches = append(matches, match)
