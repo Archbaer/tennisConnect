@@ -15,15 +15,16 @@
   export async function open() {
     loading = true;
     radius = loadRadius();
+    if (!dialog.open) dialog.showModal();
+    await tick();
+    heading?.focus();
     try {
       areaLabel = (await apiJSON<{ area_label: string }>('/api/v1/location')).area_label;
     } catch {
       areaLabel = '';
+    } finally {
+      loading = false;
     }
-    loading = false;
-    if (!dialog.open) dialog.showModal();
-    await tick();
-    heading?.focus();
   }
 
   function close() {
