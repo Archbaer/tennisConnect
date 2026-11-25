@@ -2,18 +2,20 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { apiJSON, type Profile } from '#lib/api';
-  import ProfileForm from '#lib/ProfileForm.svelte';
+  import AvailabilityForm from '#lib/AvailabilityForm.svelte';
 
   let profile: Profile | null = null;
   let loading = true;
+  let error = '';
 
   onMount(async () => {
     try {
       profile = await apiJSON<Profile>('/api/v1/profile');
-    } catch {
-      profile = null;
+    } catch (problem) {
+      error = problem instanceof Error ? problem.message : 'Play times are unavailable.';
+    } finally {
+      loading = false;
     }
-    loading = false;
   });
 </script>
 
@@ -29,14 +31,14 @@
     </div>
     <a href="/profile">Cancel</a>
   </div>
-  <p class="notice">Times are Europe/London. Slots cannot cross midnight.</p>
   {#if loading}
     <p role="status">Loading play times…</p>
+  {:else if !profile}
+    <p class="alert-box" role="alert">{error || 'Play times are unavailable.'}</p>
   {:else}
     <div class="surface">
-      <ProfileForm
-        initial={profile}
-        submitLabel="Save play times"
+      <AvailabilityForm
+        {profile}
         onSaved={() => {
           goto('/profile');
         }}

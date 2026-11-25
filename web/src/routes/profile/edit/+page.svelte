@@ -37,6 +37,8 @@
       <ProfileForm
         initial={profile}
         submitLabel="Save changes"
+        showPreferences={false}
+        showAvailability={false}
         onSaved={() => {
           goto('/profile');
         }}
