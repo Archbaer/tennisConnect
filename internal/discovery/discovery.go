@@ -87,11 +87,13 @@ effective AS (
 	WHERE l.travel IS NOT NULL
 		AND l.travel_expires_at > now()
 		AND ST_DWithin(l.travel, (SELECT point FROM viewer), $2)
+		AND ($6::uuid IS NULL OR l.user_id = $6)
 	UNION ALL
 	SELECT l.user_id, l.home
 	FROM locations l
 	WHERE NOT (l.travel IS NOT NULL AND l.travel_expires_at > now())
 		AND ST_DWithin(l.home, (SELECT point FROM viewer), $2)
+		AND ($6::uuid IS NULL OR l.user_id = $6)
 ),
 scored AS (
 	SELECT e.user_id,
@@ -164,6 +166,12 @@ FROM availability
 WHERE profile_id = ANY($1::uuid[])
 ORDER BY profile_id, weekday, start_time, end_time`
 
+const detailAvailabilityQuery = `
+SELECT profile_id, weekday, to_char(start_time, 'HH24:MI'), to_char(end_time, 'HH24:MI')
+FROM availability
+WHERE profile_id = $1
+ORDER BY weekday, start_time, end_time`
+
 const photoQuery = `
 SELECT owner_id, object_key
 FROM photos
@@ -212,6 +220,21 @@ type pageResponse struct {
 	NextCursor *string        `json:"next_cursor"`
 }
 
+type detailSlot struct {
+	Weekday int    `json:"weekday"`
+	Start   string `json:"start"`
+	End     string `json:"end"`
+}
+
+type detailCard struct {
+	playerCard
+	Availability []detailSlot `json:"availability"`
+}
+
+type detailResponse struct {
+	Player detailCard `json:"player"`
+}
+
 // Get serves GET /api/v1/discovery.
 func (s *Service) Get(w http.ResponseWriter, r *http.Request, userID string) {
 	httpapi.PreventCaching(w)
@@ -245,7 +268,7 @@ func (s *Service) Get(w http.ResponseWriter, r *http.Request, userID string) {
 		cursorUser = request.cursor.userID
 	}
 	rows, err := tx.QueryContext(ctx, candidateQuery,
-		userID, float64(request.radius)*metresPerMile, cursorMiles, cursorUser, request.limit+1)
+		userID, float64(request.radius)*metresPerMile, cursorMiles, cursorUser, request.limit+1, nil)
 	if err != nil {
 		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
 		return
@@ -320,6 +343,100 @@ func (s *Service) Get(w http.ResponseWriter, r *http.Request, userID string) {
 		response.NextCursor = &cursor
 	}
 	httpapi.WriteJSON(w, http.StatusOK, response)
+}
+
+// Detail serves GET /api/v1/discovery/{id}. It uses the same visibility
+// predicates and presigner as the page; any hidden state is a 404.
+func (s *Service) Detail(w http.ResponseWriter, r *http.Request, userID string) {
+	httpapi.PreventCaching(w)
+	if s.Presigner == nil {
+		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+		return
+	}
+	targetID := strings.ToLower(r.PathValue("id"))
+	if !validUUID(targetID) {
+		httpapi.WriteError(w, http.StatusNotFound, "player not found")
+		return
+	}
+	radius, ok := intParam(r.URL.Query().Get("radius"), defaultRadius)
+	if !ok || radius < minRadius || radius > maxRadius {
+		httpapi.WriteError(w, http.StatusBadRequest, "invalid request")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), requestBudget)
+	defer cancel()
+	tx, err := s.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
+	if err != nil {
+		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+		return
+	}
+	defer tx.Rollback()
+	if !s.viewerEligible(ctx, tx, w, userID) {
+		return
+	}
+
+	rows, err := tx.QueryContext(ctx, candidateQuery,
+		userID, float64(radius)*metresPerMile, nil, nil, 1, targetID)
+	if err != nil {
+		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+		return
+	}
+	candidates, err := scanCandidates(rows)
+	if err != nil {
+		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+		return
+	}
+	if len(candidates) == 0 {
+		httpapi.WriteError(w, http.StatusNotFound, "player not found")
+		return
+	}
+	candidate := candidates[0]
+	slots, err := loadDetailAvailability(ctx, tx, candidate.userID)
+	if err != nil {
+		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+		return
+	}
+	photos, err := loadPhotos(ctx, tx, []string{candidate.userID})
+	if err != nil {
+		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+		return
+	}
+
+	urls := make([]string, 0, photoLimit)
+	for _, photo := range photos {
+		if len(urls) >= photoLimit {
+			break
+		}
+		signed, err := s.Presigner.PresignGet(ctx, photo.objectKey, photoExpiry)
+		if err != nil {
+			log.Printf("discovery photo URL unavailable")
+			continue
+		}
+		urls = append(urls, signed)
+	}
+	availability := make([]detailSlot, len(slots))
+	for index, item := range slots {
+		availability[index] = detailSlot{Weekday: item.weekday, Start: item.start, End: item.end}
+	}
+	httpapi.WriteJSON(w, http.StatusOK, detailResponse{Player: detailCard{
+		playerCard: playerCard{
+			PlayerID:      candidate.userID,
+			DisplayName:   candidate.displayName,
+			Age:           ageAt(candidate.birthDate, time.Now().UTC()),
+			Gender:        candidate.gender,
+			SkillLevel:    candidate.skillLevel,
+			Bio:           candidate.bio,
+			PlaySummary:   playSummary(slots),
+			PhotoURLs:     urls,
+			DistanceMiles: candidate.displayMiles,
+		},
+		Availability: availability,
+	}})
 }
 
 func (s *Service) viewerEligible(ctx context.Context, tx *sql.Tx, w http.ResponseWriter, userID string) bool {
@@ -398,6 +515,23 @@ func loadAvailability(ctx context.Context, tx *sql.Tx, ids []string) (map[string
 		availability[profileID] = append(availability[profileID], entry)
 	}
 	return availability, rows.Err()
+}
+
+func loadDetailAvailability(ctx context.Context, tx *sql.Tx, id string) ([]slot, error) {
+	rows, err := tx.QueryContext(ctx, detailAvailabilityQuery, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	slots := make([]slot, 0, 4)
+	for rows.Next() {
+		var entry slot
+		if err := rows.Scan(&id, &entry.weekday, &entry.start, &entry.end); err != nil {
+			return nil, err
+		}
+		slots = append(slots, entry)
+	}
+	return slots, rows.Err()
 }
 
 func loadPhotos(ctx context.Context, tx *sql.Tx, ids []string) ([]photoRow, error) {

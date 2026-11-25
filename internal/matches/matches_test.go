@@ -799,3 +799,65 @@ func TestBlockRacingAReactionCannotCreateAMatch(t *testing.T) {
 		}
 	}
 }
+
+func reveal(t *testing.T, service *Service, userID, matchID string) *httptest.ResponseRecorder {
+	t.Helper()
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/matches/"+matchID+"/reveal", nil)
+	request.SetPathValue("id", matchID)
+	response := httptest.NewRecorder()
+	service.Reveal(response, request, userID)
+	return response
+}
+
+func TestRevealIsPerUserAndIdempotent(t *testing.T) {
+	testutil.ResetTables(t)
+	service, _ := newService(t)
+	alex, priya, sam := insertUser(t, "alex"), insertUser(t, "priya"), insertUser(t, "sam")
+	insertProfile(t, alex, "Alex", "")
+	insertProfile(t, priya, "Priya", "")
+	insertProfile(t, sam, "Sam", "")
+	react(t, service, alex, priya, "like")
+	_, matched := react(t, service, priya, alex, "like")
+	matchID := *matched.MatchID
+
+	_, alexBefore := listMatches(t, service, alex)
+	_, priyaBefore := listMatches(t, service, priya)
+	if alexBefore.Matches[0].Revealed || priyaBefore.Matches[0].Revealed {
+		t.Fatal("new match must start unrevealed for both players")
+	}
+
+	if response := reveal(t, service, alex, matchID); response.Code != http.StatusNoContent {
+		t.Fatalf("first reveal returned %d: %s", response.Code, response.Body.String())
+	}
+	if response := reveal(t, service, alex, matchID); response.Code != http.StatusNoContent {
+		t.Fatalf("second reveal returned %d, want idempotent 204", response.Code)
+	}
+
+	_, alexAfter := listMatches(t, service, alex)
+	_, priyaAfter := listMatches(t, service, priya)
+	if !alexAfter.Matches[0].Revealed {
+		t.Fatal("alex's match should be revealed")
+	}
+	if priyaAfter.Matches[0].Revealed {
+		t.Fatal("priya's match must remain unrevealed")
+	}
+	_, detail := matchDetail(t, service, alex, matchID)
+	if !detail.Revealed {
+		t.Fatal("detail should report alex's reveal")
+	}
+	_, otherDetail := matchDetail(t, service, priya, matchID)
+	if otherDetail.Revealed {
+		t.Fatal("detail leaked alex's reveal to priya")
+	}
+
+	if response := reveal(t, service, sam, matchID); response.Code != http.StatusNotFound {
+		t.Fatalf("outsider reveal returned %d, want 404", response.Code)
+	}
+
+	if response := block(t, service, priya, alex); response.Code != http.StatusNoContent {
+		t.Fatalf("block returned %d", response.Code)
+	}
+	if response := reveal(t, service, alex, matchID); response.Code != http.StatusNotFound {
+		t.Fatalf("blocked reveal returned %d, want 404", response.Code)
+	}
+}

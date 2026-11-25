@@ -1317,3 +1317,126 @@ func TestDiscoveryExclusionHoldsUnderConcurrentBlock(t *testing.T) {
 		t.Fatal("blocked candidate visible after the block committed")
 	}
 }
+
+type detailPayload struct {
+	Player struct {
+		PlayerID      string   `json:"player_id"`
+		DisplayName   string   `json:"display_name"`
+		Age           int      `json:"age"`
+		SkillLevel    string   `json:"skill_level"`
+		Bio           string   `json:"bio"`
+		PlaySummary   string   `json:"play_summary"`
+		DistanceMiles int      `json:"distance_miles"`
+		PhotoURLs     []string `json:"photo_urls"`
+		Availability  []struct {
+			Weekday int    `json:"weekday"`
+			Start   string `json:"start"`
+			End     string `json:"end"`
+		} `json:"availability"`
+	} `json:"player"`
+}
+
+func fetchDetail(t *testing.T, service *Service, viewerID, targetID, query string) (*httptest.ResponseRecorder, detailPayload) {
+	t.Helper()
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/discovery/"+targetID+query, nil)
+	request.SetPathValue("id", targetID)
+	response := httptest.NewRecorder()
+	service.Detail(response, request, viewerID)
+	var payload detailPayload
+	if response.Code == http.StatusOK {
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("decode detail: %v (body %s)", err, response.Body.String())
+		}
+	}
+	return response, payload
+}
+
+func TestDiscoveryDetailReturnsFullVisibleCard(t *testing.T) {
+	testutil.ResetTables(t)
+	service, presigner := newDiscoveryService(t)
+	viewerID := addViewer(t, defaultViewer("viewer"))
+	candidate := defaultCandidate("detail-candidate")
+	candidate.homeMetres = 2.2 * mileMetres
+	candidate.bio = "A longer bio."
+	candidate.slots = []slotFixture{
+		{weekday: 2, start: "18:00", end: "21:00"},
+		{weekday: 4, start: "19:00", end: "20:30"},
+	}
+	candidate.photos = []photoFixture{{order: 1, status: "approved"}, {order: 2, status: "approved"}}
+	candidateID := addCandidate(t, candidate)
+
+	response, payload := fetchDetail(t, service, viewerID, candidateID, "?radius=10")
+	if response.Code != http.StatusOK {
+		t.Fatalf("detail returned %d: %s", response.Code, response.Body.String())
+	}
+	if payload.Player.PlayerID != candidateID || payload.Player.DisplayName != "detail-candidate" {
+		t.Fatalf("detail player = %+v", payload.Player)
+	}
+	if payload.Player.Bio != "Hello" || len(payload.Player.PhotoURLs) != 2 {
+		t.Fatalf("detail bio/photos = %q %v", payload.Player.Bio, payload.Player.PhotoURLs)
+	}
+	if len(payload.Player.Availability) != 2 || payload.Player.Availability[0].End != "21:00" {
+		t.Fatalf("detail availability = %+v", payload.Player.Availability)
+	}
+	if len(presigner.recordedCalls()) != 2 {
+		t.Fatalf("presign calls = %d, want 2", len(presigner.recordedCalls()))
+	}
+	if strings.Contains(response.Body.String(), "@") {
+		t.Fatal("detail response contains an email-like value")
+	}
+}
+
+func TestDiscoveryDetailHidesEveryInvisibleState(t *testing.T) {
+	testutil.ResetTables(t)
+	service, _ := newDiscoveryService(t)
+	viewerID := addViewer(t, defaultViewer("viewer"))
+
+	visibleID := addCandidate(t, defaultCandidate("visible"))
+	blockedID := addCandidate(t, defaultCandidate("blocked"))
+	passedID := addCandidate(t, defaultCandidate("passed"))
+	matchedID := addCandidate(t, defaultCandidate("matched"))
+	deleted := defaultCandidate("deleted")
+	deleted.deleted = true
+	deletedID := addCandidate(t, deleted)
+	pending := defaultCandidate("pending")
+	pending.photos = []photoFixture{{order: 1, status: "pending"}}
+	pendingID := addCandidate(t, pending)
+	far := defaultCandidate("far")
+	far.homeMetres = 20 * mileMetres
+	farID := addCandidate(t, far)
+
+	mustExec(t, `INSERT INTO blocks (blocker_id, blocked_id) VALUES ($1, $2)`, viewerID, blockedID)
+	mustExec(t, `INSERT INTO reactions (actor_id, target_id, action) VALUES ($1, $2, 'pass')`, viewerID, passedID)
+	low, high := viewerID, matchedID
+	if low > high {
+		low, high = high, low
+	}
+	mustExec(t, `INSERT INTO matches (user_low, user_high) VALUES ($1, $2)`, low, high)
+
+	tests := []struct {
+		name   string
+		target string
+		query  string
+	}{
+		{name: "self", target: viewerID, query: "?radius=10"},
+		{name: "blocked", target: blockedID, query: "?radius=10"},
+		{name: "passed", target: passedID, query: "?radius=10"},
+		{name: "matched", target: matchedID, query: "?radius=10"},
+		{name: "deleted", target: deletedID, query: "?radius=10"},
+		{name: "pending photo", target: pendingID, query: "?radius=10"},
+		{name: "out of radius", target: farID, query: "?radius=5"},
+		{name: "unknown", target: "00000000-0000-4000-8000-000000000001", query: "?radius=10"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			response, _ := fetchDetail(t, service, viewerID, test.target, test.query)
+			if response.Code != http.StatusNotFound {
+				t.Fatalf("status = %d, want 404 (body %s)", response.Code, response.Body.String())
+			}
+		})
+	}
+
+	if response, _ := fetchDetail(t, service, viewerID, visibleID, "?radius=10"); response.Code != http.StatusOK {
+		t.Fatalf("visible target returned %d", response.Code)
+	}
+}
