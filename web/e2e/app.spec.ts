@@ -107,6 +107,16 @@ test('discover safety dialog names the player and offers block', async ({ page }
   await expect(page.getByRole('dialog')).not.toBeVisible();
 });
 
+test('recovery screen offers recover and continue', async ({ page }) => {
+  await page.route('**/api/v1/account/recovery', (route) =>
+    route.fulfill({ json: { recover_until: '2026-12-24T12:00:00Z' } })
+  );
+  await page.goto('/account/recovery');
+  await expect(page.getByRole('heading', { name: /scheduled for deletion/i })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Recover my account' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Continue deleting' })).toBeVisible();
+});
+
 test('offline state is announced', async ({ page }) => {
   await page.goto('/');
   await page.evaluate(() => window.dispatchEvent(new Event('offline')));

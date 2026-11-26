@@ -14,6 +14,7 @@
   const protectedPrefixes = ['/discover', '/matches', '/profile', '/onboarding', '/settings', '/account'];
 
   function needsAccount(path: string): boolean {
+    if (path === '/account/recovery') return false;
     return protectedPrefixes.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
   }
 
