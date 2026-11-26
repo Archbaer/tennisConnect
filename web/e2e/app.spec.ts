@@ -123,6 +123,19 @@ test('offline state is announced', async ({ page }) => {
   await expect(page.getByRole('status').filter({ hasText: 'You are offline' })).toBeVisible();
 });
 
+test('@mobile landing and recovery fit the viewport', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: /find a real game/i })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
+
+  await page.route('**/api/v1/account/recovery', (route) =>
+    route.fulfill({ json: { recover_until: '2026-12-24T12:00:00Z' } })
+  );
+  await page.goto('/account/recovery');
+  await expect(page.getByRole('heading', { name: /scheduled for deletion/i })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
+});
+
 test('landing page has no Content-Security-Policy violations', async ({ page }) => {
   const violations: string[] = [];
   page.on('console', (message) => {
