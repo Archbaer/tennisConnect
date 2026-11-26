@@ -51,6 +51,20 @@ Run every file in `migrations/` in filename order with
 `psql -v ON_ERROR_STOP=1` and no `--single-transaction` (the files own their
 transactions). Take a snapshot or verify PITR before a production migration.
 
+## Local verification, 2026-11-26
+
+- CSP enabled in hash mode and verified against both SvelteKit dev and the
+  built static site served by Go: no browser CSP violations, `frame-ancestors`
+  header present, `X-Request-ID` present.
+- Structured JSON request logging verified with request IDs and no query string.
+- Playwright now includes a mobile-Chromium project; desktop and mobile both
+  pass.
+- Short discovery load gate: 500 requests over 10 seconds, p95 25.7 ms, zero
+  errors, 100,000-user seed; the one-hour soak and dense-city capacity remain
+  open.
+- Recovery flow is covered by Go tests; the recovery-only cookie and screen are
+  in place.
+
 ## Launch gates still open
 
 - The one-hour 50 RPS soak and dense-city discovery capacity were not measured

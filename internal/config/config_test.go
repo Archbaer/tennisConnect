@@ -21,6 +21,8 @@ func setValidConfigEnv(t *testing.T) {
 	t.Setenv("SIGHTENGINE_API_USER", "")
 	t.Setenv("SIGHTENGINE_API_SECRET", "")
 	t.Setenv("MAPBOX_ACCESS_TOKEN", "")
+	t.Setenv("LOG_LEVEL", "")
+	t.Setenv("LOG_FORMAT", "")
 }
 
 func bytesOf(value byte, count int) []byte {
@@ -75,6 +77,35 @@ func TestLoadConfigAuthSettings(t *testing.T) {
 	}
 	if got.TrustProxy {
 		t.Fatal("TrustProxy = true, want false")
+	}
+}
+
+func TestLoadConfigLoggingDefaultsAndValidation(t *testing.T) {
+	setValidConfigEnv(t)
+	got, err := Load()
+	if err != nil {
+		t.Fatalf("Load() defaults: %v", err)
+	}
+	if got.LogLevel != "info" || got.LogFormat != "json" {
+		t.Fatalf("log defaults = %q/%q", got.LogLevel, got.LogFormat)
+	}
+	t.Setenv("LOG_LEVEL", "debug")
+	t.Setenv("LOG_FORMAT", "text")
+	got, err = Load()
+	if err != nil {
+		t.Fatalf("Load() explicit logging: %v", err)
+	}
+	if got.LogLevel != "debug" || got.LogFormat != "text" {
+		t.Fatalf("log config = %q/%q", got.LogLevel, got.LogFormat)
+	}
+	for name, value := range map[string]string{"LOG_LEVEL": "verbose", "LOG_FORMAT": "xml"} {
+		t.Run(name, func(t *testing.T) {
+			setValidConfigEnv(t)
+			t.Setenv(name, value)
+			if _, err := Load(); err == nil {
+				t.Fatalf("Load() accepted %s=%q", name, value)
+			}
+		})
 	}
 }
 
