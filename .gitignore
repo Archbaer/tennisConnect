@@ -7,6 +7,7 @@
 !docs/pentest-scope.md
 !docs/api.md
 !docs/local-development.md
+!docs/operations/logging.md
 .env
 web/node_modules/
 web/.svelte-kit/

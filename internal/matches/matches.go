@@ -7,7 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -605,7 +605,7 @@ func (s *Service) signPhotos(ctx context.Context, photos []photoRow) map[string]
 		}
 		signed, err := s.Presigner.PresignGet(ctx, photo.objectKey, photoExpiry)
 		if err != nil {
-			log.Printf("match photo URL unavailable")
+			slog.Warn("match photo URL unavailable", "event", "provider.photo_url_failed", "provider", "s3", "operation", "presign_get")
 			continue
 		}
 		urls[photo.ownerID] = append(urls[photo.ownerID], signed)

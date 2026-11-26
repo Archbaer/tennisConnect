@@ -11,7 +11,7 @@ import (
 	"image"
 	"image/jpeg"
 	_ "image/png"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -593,13 +593,13 @@ func (s *Service) insertPendingPhoto(ctx context.Context, ownerID string) (photo
 
 func (s *Service) deleteObjectBestEffort(ctx context.Context, key string) {
 	if err := s.Storage.Delete(ctx, key); err != nil {
-		log.Print("photo storage cleanup failed")
+		slog.Warn("photo storage cleanup failed", "event", "cleanup.failed", "provider", "s3", "operation", "delete")
 	}
 }
 
 func (s *Service) deletePhotoRowBestEffort(ctx context.Context, photoID, ownerID, objectKey string) {
 	if _, err := deletePhotoRowCAS(ctx, s.DB, photoID, ownerID, objectKey); err != nil {
-		log.Print("photo row cleanup failed")
+		slog.Warn("photo row cleanup failed", "event", "cleanup.failed", "operation", "delete_row")
 	}
 }
 

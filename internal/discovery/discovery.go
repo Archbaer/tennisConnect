@@ -8,7 +8,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"sort"
@@ -312,7 +312,7 @@ func (s *Service) Get(w http.ResponseWriter, r *http.Request, userID string) {
 		signed, err := s.Presigner.PresignGet(ctx, photo.objectKey, photoExpiry)
 		if err != nil {
 			// A single unusable URL must not fail the page; never log the key.
-			log.Printf("discovery photo URL unavailable")
+			slog.Warn("discovery photo URL unavailable", "event", "provider.photo_url_failed", "provider", "s3", "operation", "presign_get")
 			continue
 		}
 		urls[photo.ownerID] = append(urls[photo.ownerID], signed)
@@ -414,7 +414,7 @@ func (s *Service) Detail(w http.ResponseWriter, r *http.Request, userID string) 
 		}
 		signed, err := s.Presigner.PresignGet(ctx, photo.objectKey, photoExpiry)
 		if err != nil {
-			log.Printf("discovery photo URL unavailable")
+			slog.Warn("discovery photo URL unavailable", "event", "provider.photo_url_failed", "provider", "s3", "operation", "presign_get")
 			continue
 		}
 		urls = append(urls, signed)
