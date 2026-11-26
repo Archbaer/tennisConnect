@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -22,6 +22,7 @@ import (
 	"tennisconnect/internal/location"
 	"tennisconnect/internal/matches"
 	"tennisconnect/internal/moderation"
+	"tennisconnect/internal/observability"
 	"tennisconnect/internal/photos"
 	"tennisconnect/internal/profile"
 	"tennisconnect/internal/reviewer"
@@ -98,6 +99,11 @@ func Run() error {
 	if err != nil {
 		return err
 	}
+	logger, err := observability.New(cfg.LogLevel, cfg.LogFormat, os.Stdout)
+	if err != nil {
+		return err
+	}
+	slog.SetDefault(logger)
 
 	db, err := sql.Open("pgx", cfg.DatabaseURL)
 	if err != nil {
@@ -168,7 +174,7 @@ func Run() error {
 	}
 	server := &http.Server{
 		Addr:              cfg.Address,
-		Handler:           mux,
+		Handler:           observability.Middleware(logger, mux),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      10 * time.Second,
@@ -206,7 +212,7 @@ func Run() error {
 			}
 			cancel()
 			if err != nil {
-				log.Printf("cleanup failed: %v", err)
+				logger.Error("cleanup failed", "event", "cleanup.failed", "error_kind", "cleanup_failed")
 			}
 		case <-ctx.Done():
 			shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

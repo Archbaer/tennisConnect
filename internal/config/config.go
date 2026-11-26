@@ -27,6 +27,8 @@ type Config struct {
 	SightengineSecret  string
 	MapboxAccessToken  string
 	WebDir             string
+	LogLevel           string
+	LogFormat          string
 }
 
 func Load() (Config, error) {
@@ -67,6 +69,22 @@ func Load() (Config, error) {
 	cfg.SightengineSecret = moderationSecret
 	cfg.MapboxAccessToken = strings.TrimSpace(os.Getenv("MAPBOX_ACCESS_TOKEN"))
 	cfg.WebDir = strings.TrimSpace(os.Getenv("WEB_DIR"))
+	cfg.LogLevel = strings.ToLower(strings.TrimSpace(os.Getenv("LOG_LEVEL")))
+	if cfg.LogLevel == "" {
+		cfg.LogLevel = "info"
+	}
+	switch cfg.LogLevel {
+	case "debug", "info", "warn", "error":
+	default:
+		return Config{}, errors.New("LOG_LEVEL must be debug, info, warn or error")
+	}
+	cfg.LogFormat = strings.ToLower(strings.TrimSpace(os.Getenv("LOG_FORMAT")))
+	if cfg.LogFormat == "" {
+		cfg.LogFormat = "json"
+	}
+	if cfg.LogFormat != "json" && cfg.LogFormat != "text" {
+		return Config{}, errors.New("LOG_FORMAT must be json or text")
+	}
 	return cfg, nil
 }
 

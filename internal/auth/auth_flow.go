@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"tennisconnect/internal/httpapi"
+	"tennisconnect/internal/observability"
 )
 
 var confirmPage = template.Must(template.New("confirm").Parse(`<!doctype html>
@@ -366,7 +367,7 @@ func (a *Service) RequireUser(next func(http.ResponseWriter, *http.Request, stri
 			httpapi.WriteError(w, http.StatusForbidden, "account suspended")
 			return
 		}
-		next(w, r, userID)
+		next(w, r.WithContext(observability.WithActor(r.Context(), userID)), userID)
 	}
 }
 
@@ -378,7 +379,7 @@ func (a *Service) RequireAccount(next func(http.ResponseWriter, *http.Request, s
 		if !ok {
 			return
 		}
-		next(w, r, userID)
+		next(w, r.WithContext(observability.WithActor(r.Context(), userID)), userID)
 	}
 }
 
