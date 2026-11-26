@@ -109,6 +109,18 @@ set +a
 go run ./cmd/api
 ```
 
+### Signed-in local fixture without cloud keys
+
+`scripts/dev-seed.sh` creates a complete Dev Player and Navya candidate in the
+local Docker database, plus a seven-day session. It refuses to run unless the
+local database has the current schema. It prints a browser cookie and a `curl`
+example; it never adds a server-side login bypass.
+
+Use the printed cookie in the browser console, or run the analogous SQL only
+against the local `tennisconnect` database. The seeded photo URLs point at the
+local fake S3 bucket, so thumbnails stay broken until real S3 or MinIO exists;
+card data, matches, settings and recovery still work.
+
 Mapbox geocoding is optional. Set `MAPBOX_ACCESS_TOKEN` to a Mapbox access token to enable area lookup. Without it the server starts normally and `PUT /api/v1/location` and `PUT /api/v1/location/travel` return 503; reads and discovery still serve previously stored areas. Area lookups send the typed area or the browser coordinates to Mapbox and request `permanent=true` results because the centroid and coarse label are stored. Selecting Mapbox as a subprocessor that receives exact coordinates at write time needs the vendor data-protection addendum and a card or enterprise contract for permanent geocoding before launch.
 
 Private photo storage is optional locally. Set `S3_BUCKET` and `AWS_REGION` (for example `eu-west-2`) plus credentials from the standard AWS chain to enable uploads. When no credentials exist, set `AWS_EC2_METADATA_DISABLED=true` so the AWS SDK does not wait on instance metadata. Without `S3_BUCKET` the server starts normally and the photo endpoints return 503; `AWS_REGION` is required whenever `S3_BUCKET` is set. The bucket must block all public access, enforce TLS-only access, and allow browser `PUT` from the app origin with the `content-type` header. Never apply a public ACL.
