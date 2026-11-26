@@ -117,9 +117,11 @@ their five-minute lifetime.
 - Production dense-city load and the one-hour 50 RPS soak remain unproven. The
   committed load gate is local and environment-gated.
 - CD is deferred; `main` deploys nothing automatically.
-- The static app has no Content-Security-Policy yet. SvelteKit's generated
-  bootstrap script makes a naive `script-src 'self'` fail; add a hash/nonce
-  policy and verify the build in Task 9 follow-up.
+- The static app uses SvelteKit build-time script hashes plus a Go
+  `frame-ancestors 'none'` header. `style-src` keeps `'unsafe-inline'` because
+  Svelte emits inline style attributes. The S3 image/connect source is a
+  region-scoped wildcard host; pin it to the exact bucket origin when the
+  production bucket name is fixed.
 - Playwright covers Chromium only. iOS Safari and Android Chrome need a manual
   accessibility and upload pass.
 
@@ -144,3 +146,5 @@ their five-minute lifetime.
 - `govulncheck ./...` and `gitleaks detect --source .`.
 - Route matrix above exercised by tests, including IDOR and cross-user reads.
 - No new secret, raw e-mail, coordinate or report detail in logs.
+- Structured logs use a fixed schema, server-generated request IDs, stdout only
+  and pseudonymous actor references; see `docs/operations/logging.md`.

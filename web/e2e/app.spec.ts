@@ -123,6 +123,18 @@ test('offline state is announced', async ({ page }) => {
   await expect(page.getByRole('status').filter({ hasText: 'You are offline' })).toBeVisible();
 });
 
+test('landing page has no Content-Security-Policy violations', async ({ page }) => {
+  const violations: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error' && /content security policy|refused to/i.test(message.text())) {
+      violations.push(message.text());
+    }
+  });
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: /find a real game/i })).toBeVisible();
+  expect(violations).toEqual([]);
+});
+
 test('landing page has no serious accessibility violations', async ({ page }) => {
   await page.goto('/');
   const results = await new AxeBuilder({ page }).analyze();

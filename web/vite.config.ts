@@ -13,7 +13,21 @@ export default defineConfig({
         fallback: 'index.html',
         precompress: false,
         strict: true
-      })
+      }),
+      csp: {
+        mode: 'hash',
+        directives: {
+          'default-src': ['self'],
+          'script-src': ['self'],
+          'style-src': ['self', 'unsafe-inline'],
+          'img-src': ['self', 'data:', 'https://*.s3.eu-west-2.amazonaws.com'],
+          'connect-src': ['self', 'https://*.s3.eu-west-2.amazonaws.com'],
+          'font-src': ['self'],
+          'object-src': ['none'],
+          'base-uri': ['none'],
+          'form-action': ['self']
+        }
+      }
     })
   ],
   resolve: {
