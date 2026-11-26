@@ -137,7 +137,7 @@ func cleanupLoadData(t *testing.T) {
 func explainCandidateQuery(t *testing.T, viewerID string) string {
 	t.Helper()
 	rows, err := testutil.DB.Query("EXPLAIN (ANALYZE, BUFFERS) "+candidateQuery,
-		viewerID, float64(10)*metresPerMile, nil, nil, 21)
+		viewerID, float64(10)*metresPerMile, nil, nil, 21, nil)
 	if err != nil {
 		t.Fatalf("explain candidate query: %v", err)
 	}
