@@ -174,6 +174,7 @@ func (a *Service) CleanupExpired(ctx context.Context) error {
 		"DELETE FROM login_tokens WHERE expires_at <= now()",
 		"DELETE FROM sessions WHERE expires_at <= now()",
 		"DELETE FROM auth_rate_limits WHERE window_start < now() - interval '2 hours'",
+		"DELETE FROM recovery_sessions WHERE expires_at <= now()",
 	} {
 		if _, err := a.DB.ExecContext(ctx, query); err != nil {
 			return err
