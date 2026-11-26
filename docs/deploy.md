@@ -38,7 +38,11 @@ environment variables documented in `docs/local-development.md`. `WEB_DIR` is al
 
 The API sets `Cache-Control: no-store` and `Referrer-Policy: no-referrer` on
 private responses. The static handler sets `X-Content-Type-Options: nosniff`,
-`Referrer-Policy: no-referrer` and a restrictive `Permissions-Policy`. Add HSTS
+`Referrer-Policy: no-referrer`, a restrictive `Permissions-Policy`, and
+`Content-Security-Policy: frame-ancestors 'none'; base-uri 'none'`.
+SvelteKit adds a build-time hash-based CSP meta tag for scripts, styles, fonts,
+images and connections; `style-src` includes `'unsafe-inline'` for Svelte style
+attributes. Pin the S3 source to the exact production bucket origin. Add HSTS
 only after the production domain is stable; a preload mistake is hard to undo.
 
 ## Migrations

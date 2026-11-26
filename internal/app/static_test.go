@@ -44,6 +44,9 @@ func TestSPAHandlerServesAssetsAndFallback(t *testing.T) {
 		if response.Header().Get("X-Content-Type-Options") != "nosniff" {
 			t.Fatalf("GET %s missing nosniff", test.path)
 		}
+		if !strings.Contains(response.Header().Get("Content-Security-Policy"), "frame-ancestors 'none'") {
+			t.Fatalf("GET %s missing frame-ancestors", test.path)
+		}
 	}
 }
 
