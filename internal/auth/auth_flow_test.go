@@ -69,6 +69,16 @@ func countAuthRows(t *testing.T, table string) int {
 	return count
 }
 
+func responseCookie(t *testing.T, response *httptest.ResponseRecorder, name string) *http.Cookie {
+	t.Helper()
+	for _, cookie := range response.Result().Cookies() {
+		if cookie.Name == name {
+			return cookie
+		}
+	}
+	return nil
+}
+
 func responseSessionCookie(t *testing.T, response *httptest.ResponseRecorder) *http.Cookie {
 	t.Helper()
 	for _, cookie := range response.Result().Cookies() {
@@ -213,7 +223,7 @@ func TestVerifyRejectsExpiredToken(t *testing.T) {
 	}
 }
 
-func TestVerifyRecoversRecentlyDeletedUser(t *testing.T) {
+func TestVerifyIssuesRecoverySessionForDeletedUser(t *testing.T) {
 	auth, emails := newTestAuth(t)
 	userID := insertTestUser(t, auth, "player@example.com")
 	if _, err := testutil.DB.Exec("UPDATE users SET deleted_at = now() - interval '1 day' WHERE id = $1", userID); err != nil {
@@ -224,12 +234,24 @@ func TestVerifyRecoversRecentlyDeletedUser(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body = %s", response.Code, response.Body.String())
 	}
+	if !strings.Contains(response.Body.String(), `"recovery":true`) {
+		t.Fatalf("missing recovery marker: %s", response.Body.String())
+	}
+	if cookie := responseCookie(t, response, recoveryCookie); cookie == nil {
+		t.Fatal("response has no recovery cookie")
+	}
+	if cookie := responseCookie(t, response, "tennisconnect_session"); cookie != nil {
+		t.Fatal("deleted account received a normal session")
+	}
 	var deletedAt sql.NullTime
 	if err := testutil.DB.QueryRow("SELECT deleted_at FROM users WHERE id = $1", userID).Scan(&deletedAt); err != nil {
 		t.Fatal(err)
 	}
-	if deletedAt.Valid {
-		t.Fatal("recovery did not clear deleted_at")
+	if !deletedAt.Valid {
+		t.Fatal("signing in restored the account without consent")
+	}
+	if got := countAuthRows(t, "sessions"); got != 0 {
+		t.Fatalf("sessions = %d, want 0", got)
 	}
 }
 

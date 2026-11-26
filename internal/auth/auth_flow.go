@@ -180,16 +180,28 @@ func (a *Service) VerifyLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if deletedAt.Valid {
-		// Signing in inside the 30-day recovery window restores the account.
-		// After it, the row is either purged by the hourly cleanup or rejected.
-		if time.Since(deletedAt.Time) > 30*24*time.Hour {
+		// Signing in inside the window issues a recovery-only credential. The
+		// account stays deleted until the owner explicitly chooses to recover.
+		if time.Since(deletedAt.Time) > recoveryDays*24*time.Hour {
 			httpapi.WriteError(w, http.StatusUnauthorized, "invalid or expired link")
 			return
 		}
-		if _, err := tx.ExecContext(ctx, "UPDATE users SET deleted_at = NULL WHERE id = $1", userID); err != nil {
+		recoveryToken, err := createRecoverySession(ctx, tx, userID)
+		if err != nil {
 			httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
 			return
 		}
+		if err := tx.Commit(); err != nil {
+			httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
+			return
+		}
+		setRecoveryCookie(w, recoveryToken, a.CookieSecure)
+		if strings.Contains(r.Header.Get("Accept"), "text/html") {
+			http.Redirect(w, r, a.AppBaseURL+"/account/recovery", http.StatusSeeOther)
+			return
+		}
+		httpapi.WriteJSON(w, http.StatusOK, map[string]bool{"recovery": true})
+		return
 	}
 	if _, err := tx.ExecContext(ctx, "UPDATE users SET last_active_at = now() WHERE id = $1", userID); err != nil {
 		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
