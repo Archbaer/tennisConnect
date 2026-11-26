@@ -71,6 +71,19 @@ For a database upgrading from the matches phase, apply the safety migration once
 docker compose up -d --force-recreate database
 docker compose exec -T database psql --single-transaction --set=ON_ERROR_STOP=1 -U tennisconnect -d tennisconnect -f /docker-entrypoint-initdb.d/000007_safety.sql
 ```
+For a database upgrading from the safety phase, apply the match reveals migration once:
+
+```sh
+docker compose up -d --force-recreate database
+docker compose exec -T database psql --single-transaction --set=ON_ERROR_STOP=1 -U tennisconnect -d tennisconnect -f /docker-entrypoint-initdb.d/000008_match_reveals.sql
+```
+
+For a database upgrading from the match reveals phase, apply the recovery migration once:
+
+```sh
+docker compose up -d --force-recreate database
+docker compose exec -T database psql --single-transaction --set=ON_ERROR_STOP=1 -U tennisconnect -d tennisconnect -f /docker-entrypoint-initdb.d/000009_recovery_sessions.sql
+```
 
 Create local configuration once. Keep the generated keys stable: replacing them makes existing account lookups and encrypted data unreadable.
 
