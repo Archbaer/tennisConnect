@@ -187,6 +187,11 @@
     min-width: 0;
     color: var(--ink);
     text-decoration: none;
+    transition: transform 160ms ease;
+  }
+
+  .match-person:hover {
+    transform: translateX(2px);
   }
 
   .match-person:hover strong {
@@ -198,9 +203,11 @@
     width: 2.5rem;
     height: 2.5rem;
     flex: 0 0 2.5rem;
+    border: 1px solid var(--line);
     border-radius: var(--radius-chip);
     object-fit: cover;
     background: var(--media-bg);
+    box-shadow: inset 0 1px 0 var(--highlight), var(--tc-shadow-1);
   }
 
   .placeholder {

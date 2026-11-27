@@ -164,16 +164,17 @@
     padding: 1.5rem;
     border: 1px solid var(--line);
     border-radius: var(--radius-control);
-    background: var(--surface);
+    background: linear-gradient(180deg, var(--surface-top), var(--surface) 72%);
     color: var(--ink);
-    box-shadow: 0 28px 80px rgb(6 40 31 / 28%);
+    box-shadow: var(--card-highlight), var(--tc-shadow-3);
     overflow-y: auto;
     overscroll-behavior: contain;
   }
 
   .safety-dialog::backdrop {
-    background: rgb(6 40 31 / 55%);
-    backdrop-filter: blur(3px);
+    background: var(--backdrop);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
   }
 
   .dialog-head {

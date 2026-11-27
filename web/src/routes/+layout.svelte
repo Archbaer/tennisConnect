@@ -256,7 +256,10 @@
     position: relative;
     min-width: 0;
     border-right: 1px solid var(--line);
-    background: var(--surface);
+    background: var(--sidebar-bg);
+    backdrop-filter: blur(18px) saturate(1.2);
+    -webkit-backdrop-filter: blur(18px) saturate(1.2);
+    box-shadow: inset -1px 0 0 var(--highlight);
   }
 
   .sidebar-inner {
@@ -289,23 +292,45 @@
   }
 
   .sidebar-nav a {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 0.55rem;
-    padding: 0.5rem 0.6rem;
-    border-radius: 10px;
+    padding: 0.55rem 0.65rem;
+    border-radius: 12px;
     color: var(--muted);
     text-decoration: none;
+    transition: background 160ms ease, color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
   }
 
   .sidebar-nav a:hover {
-    background: var(--paper);
+    background: var(--surface-hover);
     color: var(--court);
+    transform: translateX(2px);
   }
 
   .sidebar-nav a.active {
-    background: var(--court);
+    background: linear-gradient(135deg, var(--nav-active-from), var(--nav-active-to) 72%);
     color: white;
+    transform: none;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 22%), 0 8px 20px var(--nav-glow);
+  }
+
+  .sidebar-nav a.active::before {
+    content: '';
+    position: absolute;
+    left: -0.55rem;
+    top: 50%;
+    width: 3px;
+    height: 1.15rem;
+    border-radius: 999px;
+    background: var(--ball);
+    box-shadow: 0 0 10px var(--ball);
+    transform: translateY(-50%);
+  }
+
+  .sidebar-nav a.active i {
+    color: var(--ball);
   }
 
   .nav-count {
@@ -316,10 +341,14 @@
     margin-left: auto;
     padding-inline: 0.3rem;
     border-radius: 999px;
-    background: var(--ball);
+    background: linear-gradient(180deg, #efff9e, var(--ball));
     color: #0a1714;
     font-size: 0.68rem;
     font-weight: 800;
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 70%),
+      0 0 0 2px var(--surface),
+      0 0 12px var(--ball-glow);
   }
 
   .sidebar-foot {
@@ -327,7 +356,8 @@
     padding: 0.75rem;
     border: 1px solid var(--line);
     border-radius: var(--radius-control);
-    background: var(--paper);
+    background: linear-gradient(180deg, var(--surface-top), var(--surface));
+    box-shadow: var(--card-highlight), var(--tc-shadow-1);
   }
 
   .sidebar-foot p:last-child {
@@ -349,7 +379,9 @@
     top: 0;
     z-index: 20;
     background: var(--header-bg);
-    backdrop-filter: blur(10px);
+    backdrop-filter: blur(12px) saturate(1.2);
+    -webkit-backdrop-filter: blur(12px) saturate(1.2);
+    box-shadow: var(--header-shadow);
   }
 
   .header-inner {
@@ -503,7 +535,9 @@
       padding-bottom: env(safe-area-inset-bottom);
       border-top: 1px solid var(--line);
       background: var(--tab-bg);
-      backdrop-filter: blur(12px);
+      backdrop-filter: blur(14px) saturate(1.2);
+      -webkit-backdrop-filter: blur(14px) saturate(1.2);
+      box-shadow: 0 -8px 24px rgb(6 40 31 / 6%);
     }
 
     .tab-bar a {
@@ -517,6 +551,7 @@
       font-size: 0.72rem;
       font-weight: 700;
       text-decoration: none;
+      transition: background 160ms ease, color 160ms ease;
     }
 
     .tab-bar a i {
@@ -524,8 +559,11 @@
     }
 
     .tab-bar a.active {
+      margin: 0.3rem 0.15rem;
+      border-radius: 14px;
       color: var(--court);
-      background: var(--tab-active-bg);
+      background: linear-gradient(180deg, var(--surface-hover), var(--tab-active-bg));
+      box-shadow: inset 0 2px 0 var(--court-light), var(--card-highlight);
     }
 
     .tab-bar a.active i {
@@ -536,6 +574,13 @@
   @media (min-width: 768px) {
     .tab-bar {
       display: none;
+    }
+  }
+
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .app-sidebar,
+    .tab-bar {
+      background: var(--surface);
     }
   }
 </style>
