@@ -237,7 +237,16 @@ export function chartGeometry(values: number[], width = 720, height = 260): Char
     value
   }));
   const line = points
-    .map((point, index) => `${index === 0 ? 'M' : 'L'}${point.x.toFixed(1)},${point.y.toFixed(1)}`)
+    .map((point, index) => {
+      if (index === 0) return `M${point.x.toFixed(1)},${point.y.toFixed(1)}`;
+      const previous = points[index - 1];
+      const handle = (point.x - previous.x) / 3;
+      return [
+        `C${(previous.x + handle).toFixed(1)},${previous.y.toFixed(1)}`,
+        `${(point.x - handle).toFixed(1)},${point.y.toFixed(1)}`,
+        `${point.x.toFixed(1)},${point.y.toFixed(1)}`
+      ].join(' ');
+    })
     .join(' ');
   const baseline = height - bottom;
   const area = `${line} L${points[points.length - 1].x.toFixed(1)},${baseline} L${points[0].x.toFixed(1)},${baseline} Z`;

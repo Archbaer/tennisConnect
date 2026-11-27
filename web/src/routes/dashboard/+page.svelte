@@ -32,6 +32,7 @@
   let matches: DashboardMatch[] = [];
   let kpis: Kpi[] = [];
   let filtered: DashboardMatch[] = [];
+  let activeIndex = -1;
 
   $: matches = buildDashboardMatches(rawMatches);
   $: kpis = buildKpis(matches);
@@ -40,6 +41,40 @@
   $: summary = activitySummary(monthly);
   $: windows = playWindows(profile?.availability ?? []);
   $: filtered = filterMatches(matches, query, resultFilter);
+  $: activeMonth = activeIndex >= 0 ? monthly[activeIndex] : undefined;
+  $: inspectedMonth = activeMonth ?? monthly[0];
+  $: inspectedText = inspectedMonth
+    ? `${inspectedMonth.label}: ${inspectedMonth.count} ${inspectedMonth.count === 1 ? 'match' : 'matches'}`
+    : 'No months available';
+  $: activePoint = activeIndex >= 0 ? chart.points[activeIndex] : undefined;
+  $: tooltip = activePoint ? tooltipFor(activePoint) : undefined;
+
+  function tooltipFor(point: { x: number; y: number }) {
+    const half = 58;
+    return {
+      x: Math.min(Math.max(point.x, chart.left + half), chart.width - chart.right - half),
+      y: point.y > 76 ? point.y - 14 : point.y + 14,
+      below: point.y <= 76
+    };
+  }
+
+  function inspectChart(event: KeyboardEvent) {
+    const last = monthly.length - 1;
+    if (last < 0) return;
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+      event.preventDefault();
+      activeIndex = activeIndex < 0 ? 0 : Math.min(activeIndex + 1, last);
+    } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      activeIndex = activeIndex < 0 ? last : Math.max(activeIndex - 1, 0);
+    } else if (event.key === 'Home') {
+      event.preventDefault();
+      activeIndex = 0;
+    } else if (event.key === 'End') {
+      event.preventDefault();
+      activeIndex = last;
+    }
+  }
 
   onMount(async () => {
     const [matchesResult, profileResult] = await Promise.allSettled([
@@ -132,7 +167,7 @@
           </div>
           <label class="period-select">
             <span class="visually-hidden">Chart period</span>
-            <select bind:value={period}>
+            <select bind:value={period} onchange={() => (activeIndex = -1)}>
               <option value="12">Yearly</option>
               <option value="6">Last 6 months</option>
             </select>
@@ -143,10 +178,31 @@
           <svg
             class="area-chart"
             viewBox={`0 0 ${chart.width} ${chart.height}`}
-            role="img"
-            aria-labelledby="chart-summary"
+            role="slider"
+            tabindex="0"
+            aria-labelledby="activity-title"
+            aria-describedby="chart-summary"
+            aria-valuemin="1"
+            aria-valuemax={Math.max(monthly.length, 1)}
+            aria-valuenow={activeIndex >= 0 ? activeIndex + 1 : 1}
+            aria-valuetext={inspectedText}
+            onkeydown={inspectChart}
+            onfocus={() => {
+              if (activeIndex < 0 && monthly.length) activeIndex = monthly.length - 1;
+            }}
+            onblur={() => (activeIndex = -1)}
           >
             <desc id="chart-summary">{summary}</desc>
+            <defs>
+              <linearGradient id="activity-fill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" class="chart-stop-start" />
+                <stop offset="100%" class="chart-stop-end" />
+              </linearGradient>
+              <linearGradient id="activity-line" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" class="chart-line-stop-start" />
+                <stop offset="100%" class="chart-line-stop-end" />
+              </linearGradient>
+            </defs>
             {#each chart.ticks as tick}
               <line
                 class="grid-line"
@@ -157,11 +213,44 @@
               />
               <text class="axis-label" x={chart.left - 6} y={tick.y + 3} text-anchor="end">{tick.label}</text>
             {/each}
-            <path class="chart-area" d={chart.area} />
-            <path class="chart-line" d={chart.line} />
-            {#each chart.points as point}
-              <circle class="chart-dot" cx={point.x} cy={point.y} r="3" />
+            <path class="chart-area" d={chart.area} fill="url(#activity-fill)" />
+            <path class="chart-line" d={chart.line} stroke="url(#activity-line)" />
+            {#each chart.points as point, index}
+              <circle class="chart-dot" class:active={activeIndex === index} cx={point.x} cy={point.y} r={activeIndex === index ? 4.5 : 3} />
             {/each}
+            {#each chart.points as point, index}
+              <circle
+                class="chart-hit"
+                cx={point.x}
+                cy={point.y}
+                r="13"
+                role="presentation"
+                aria-hidden="true"
+                onpointerenter={() => (activeIndex = index)}
+                onpointerleave={() => (activeIndex = -1)}
+                onpointerdown={() => (activeIndex = index)}
+              />
+            {/each}
+            {#if activePoint && activeMonth && tooltip}
+              <g class="chart-tip" transform={`translate(${tooltip.x}, ${tooltip.y})`} aria-hidden="true">
+                <rect
+                  class="chart-tip-card"
+                  x="-58"
+                  y={tooltip.below ? 0 : -52}
+                  width="116"
+                  height="44"
+                  rx="10"
+                />
+                <path
+                  class="chart-tip-caret"
+                  d={tooltip.below ? 'M-5,0 L0,-6 L5,0 Z' : 'M-5,-8 L0,-2 L5,-8 Z'}
+                />
+                <text class="chart-tip-month" x="0" y={tooltip.below ? 16 : -36} text-anchor="middle">{activeMonth.label}</text>
+                <text class="chart-tip-value" x="0" y={tooltip.below ? 32 : -20} text-anchor="middle">
+                  {activeMonth.count} {activeMonth.count === 1 ? 'match' : 'matches'}
+                </text>
+              </g>
+            {/if}
             {#each monthly as month, index}
               <text
                 class="axis-label"
@@ -370,20 +459,89 @@
     overflow: visible;
   }
 
-  .chart-area {
-    fill: var(--chart-fill);
+  .chart-stop-start {
+    stop-color: var(--chart-fill-start);
+    stop-opacity: 0.34;
+  }
+
+  .chart-stop-end {
+    stop-color: var(--chart-fill-start);
+    stop-opacity: 0;
+  }
+
+  .chart-line-stop-start {
+    stop-color: var(--chart-line-start);
+  }
+
+  .chart-line-stop-end {
+    stop-color: var(--chart-line-end);
   }
 
   .chart-line {
     fill: none;
-    stroke: var(--chart-line);
-    stroke-width: 2;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    filter: drop-shadow(0 0 6px var(--chart-glow));
   }
 
   .chart-dot {
     fill: var(--surface);
     stroke: var(--chart-line);
     stroke-width: 2;
+    pointer-events: none;
+    transition: r 140ms ease, fill 140ms ease, stroke 140ms ease;
+  }
+
+  .chart-dot.active {
+    fill: var(--ball);
+    stroke: var(--court-deep);
+    stroke-width: 2.5;
+    filter: drop-shadow(0 0 6px var(--ball-glow));
+  }
+
+  .area-chart:focus-visible {
+    outline: 2px solid var(--sky);
+    outline-offset: 4px;
+    border-radius: 10px;
+  }
+
+  .chart-hit {
+    fill: transparent;
+    cursor: pointer;
+  }
+
+  .chart-tip {
+    pointer-events: none;
+    filter: drop-shadow(0 8px 18px rgb(6 40 31 / 18%));
+  }
+
+  .chart-tip-card {
+    fill: var(--surface);
+    stroke: var(--line);
+    stroke-width: 1;
+  }
+
+  .chart-tip-caret {
+    fill: var(--surface);
+    stroke: var(--line);
+    stroke-width: 1;
+    stroke-linejoin: round;
+  }
+
+  .chart-tip-month {
+    fill: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .chart-tip-value {
+    fill: var(--ink);
+    font-size: 12px;
+    font-weight: 700;
   }
 
   .grid-line {
