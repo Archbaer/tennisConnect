@@ -787,7 +787,7 @@ button:disabled,
   box-shadow: var(--card-highlight), var(--tc-shadow-2);
 }
 
-.kpi-strip > .kpi:last-child:nth-child(odd) {
+.kpi-strip:not(.three) > .kpi:last-child:nth-child(odd) {
   grid-column: 1 / -1;
 }
 
@@ -796,7 +796,7 @@ button:disabled,
 }
 
 .kpi-strip.three {
-  --kpi-columns: 2;
+  --kpi-columns: 3;
 }
 
 .kpi {
@@ -1672,12 +1672,18 @@ progress.progress-track::-moz-progress-bar {
 }
 
 @media (max-width: 400px) {
-  .kpi-strip.three {
-    --kpi-columns: 2;
+  .kpi {
+    padding: 0.6rem 0.5rem;
   }
 
-  .kpi {
-    padding: 0.65rem 0.6rem;
+  .kpi-label {
+    font-size: 0.62rem;
+    letter-spacing: 0.04em;
+  }
+
+  .kpi-delta {
+    padding-inline: 0.4rem;
+    font-size: 0.68rem;
   }
 }
 
