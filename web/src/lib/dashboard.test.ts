@@ -132,6 +132,7 @@ describe('chartGeometry', () => {
     expect(chart.points).toHaveLength(3);
     expect(chart.max).toBe(4);
     expect(chart.line.startsWith('M')).toBe(true);
+    expect(chart.line).toContain('C');
     expect(chart.area.endsWith('Z')).toBe(true);
     expect(chart.ticks).toHaveLength(5);
     expect(chart.points[2].x).toBeGreaterThan(chart.points[0].x);

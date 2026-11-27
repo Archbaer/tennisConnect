@@ -9,6 +9,17 @@
   let error = '';
   let submitting = false;
 
+  const previewPoints = [
+    { x: 12, y: 98 },
+    { x: 68, y: 86 },
+    { x: 124, y: 102 },
+    { x: 180, y: 70 },
+    { x: 236, y: 78 },
+    { x: 292, y: 46 },
+    { x: 348, y: 58 },
+    { x: 404, y: 30 }
+  ];
+
   onMount(async () => {
     if ((await loadSession()) === 'signed-in') {
       await goto('/discover');
@@ -83,19 +94,33 @@
         <div><span>This month</span><strong>4</strong></div>
       </div>
       <svg class="preview-chart" viewBox="0 0 420 150" role="presentation">
+        <defs>
+          <linearGradient id="preview-fill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" class="preview-stop-start" />
+            <stop offset="100%" class="preview-stop-end" />
+          </linearGradient>
+          <linearGradient id="preview-line" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" class="preview-line-stop-start" />
+            <stop offset="100%" class="preview-line-stop-end" />
+          </linearGradient>
+        </defs>
         <line x1="12" x2="408" y1="30" y2="30" />
         <line x1="12" x2="408" y1="75" y2="75" />
         <line x1="12" x2="408" y1="120" y2="120" />
-        <path class="preview-area" d="M12,120 L12,98 L68,86 L124,102 L180,70 L236,78 L292,46 L348,58 L404,30 L408,30 L408,120 Z" />
-        <path class="preview-line" d="M12,98 L68,86 L124,102 L180,70 L236,78 L292,46 L348,58 L404,30" />
-        <circle cx="12" cy="98" r="2.5" />
-        <circle cx="68" cy="86" r="2.5" />
-        <circle cx="124" cy="102" r="2.5" />
-        <circle cx="180" cy="70" r="2.5" />
-        <circle cx="236" cy="78" r="2.5" />
-        <circle cx="292" cy="46" r="2.5" />
-        <circle cx="348" cy="58" r="2.5" />
-        <circle cx="404" cy="30" r="2.5" />
+        <path
+          class="preview-area"
+          fill="url(#preview-fill)"
+          d="M12,98 C31,98 49,86 68,86 C87,86 105,102 124,102 C143,102 161,70 180,70 C199,70 217,78 236,78 C255,78 273,46 292,46 C311,46 329,58 348,58 C367,58 385,30 404,30 L408,30 L408,120 L12,120 Z"
+        />
+        <path
+          class="preview-line"
+          stroke="url(#preview-line)"
+          d="M12,98 C31,98 49,86 68,86 C87,86 105,102 124,102 C143,102 161,70 180,70 C199,70 217,78 236,78 C255,78 273,46 292,46 C311,46 329,58 348,58 C367,58 385,30 404,30"
+        />
+        {#each previewPoints as point}
+          <circle class="preview-halo" cx={point.x} cy={point.y} r="6" />
+          <circle class="preview-dot" cx={point.x} cy={point.y} r="2.5" />
+        {/each}
       </svg>
       <div class="preview-progress">
         <div>
@@ -209,8 +234,8 @@
     padding: 1rem;
     border: 1px solid var(--line);
     border-radius: var(--radius-control);
-    background: var(--surface);
-    box-shadow: var(--shadow);
+    background: linear-gradient(180deg, var(--surface-top), var(--surface) 72%);
+    box-shadow: var(--card-highlight), var(--tc-shadow-3);
   }
 
   .preview-bar {
@@ -248,13 +273,14 @@
     border: 1px solid var(--line);
     border-radius: var(--radius-control);
     background: var(--line);
+    box-shadow: var(--card-highlight), var(--tc-shadow-1);
   }
 
   .preview-kpis div {
     display: grid;
     gap: 0.2rem;
     padding: 0.65rem;
-    background: var(--surface);
+    background: linear-gradient(180deg, var(--surface-top), var(--surface));
   }
 
   .preview-kpis span {
@@ -278,7 +304,8 @@
     height: auto;
     border: 1px solid var(--line);
     border-radius: var(--radius-control);
-    background: var(--paper);
+    background: linear-gradient(180deg, var(--surface-2), var(--paper));
+    box-shadow: inset 0 1px 0 var(--highlight);
   }
 
   .preview-chart line {
@@ -286,17 +313,38 @@
     stroke-width: 1;
   }
 
-  .preview-chart .preview-area {
-    fill: var(--chart-fill);
+  .preview-stop-start {
+    stop-color: var(--chart-fill-start);
+    stop-opacity: 0.34;
+  }
+
+  .preview-stop-end {
+    stop-color: var(--chart-fill-start);
+    stop-opacity: 0;
+  }
+
+  .preview-line-stop-start {
+    stop-color: var(--chart-line-start);
+  }
+
+  .preview-line-stop-end {
+    stop-color: var(--chart-line-end);
   }
 
   .preview-chart .preview-line {
     fill: none;
-    stroke: var(--chart-line);
-    stroke-width: 2;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    filter: drop-shadow(0 0 6px var(--chart-glow));
   }
 
-  .preview-chart circle {
+  .preview-halo {
+    fill: var(--chart-line-end);
+    opacity: 0.14;
+  }
+
+  .preview-dot {
     fill: var(--surface);
     stroke: var(--chart-line);
     stroke-width: 2;
@@ -327,18 +375,19 @@
 
   .preview-segments {
     display: flex;
-    gap: 2px;
-    height: 6px;
+    gap: 3px;
+    height: 7px;
   }
 
   .preview-segments i {
     flex: 1;
     border-radius: 999px;
-    background: var(--line);
+    background: var(--tracker-track);
   }
 
   .preview-segments i.on {
-    background: var(--tracker-progress);
+    background: linear-gradient(90deg, var(--tracker-from), var(--tracker-to));
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 28%);
   }
 
   .section-intro {
@@ -372,9 +421,10 @@
     height: 2.6rem;
     margin-bottom: 0.5rem;
     border-radius: 50%;
-    background: var(--ball);
+    background: linear-gradient(160deg, #efff9e, var(--ball));
     color: var(--court-deep);
     font-size: 1.25rem;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 60%), 0 8px 18px var(--ball-glow);
   }
 
   .sign-in {
