@@ -88,6 +88,10 @@
   --radius-control: 14px;
   --radius-chip: 10px;
   --tap: 2.75rem;
+  --tab-bar-height: 4.4rem;
+  --tab-bar-safe: env(safe-area-inset-bottom, 0px);
+  --tab-bar-gap: 1rem;
+  --tab-bar-space: calc(var(--tab-bar-height) + var(--tab-bar-safe) + var(--tab-bar-gap));
   --space-page-x: 0.75rem;
   --space-page-top: 0.75rem;
   --space-page-bottom: 1.5rem;
@@ -360,6 +364,16 @@ small,
   width: min(100% - (2 * var(--space-page-x)), 72rem);
   margin-inline: auto;
   padding-block: var(--space-page-top) var(--space-page-bottom);
+}
+
+@media (max-width: 767px) {
+  .with-tabs main {
+    padding-bottom: var(--tab-bar-space);
+  }
+
+  .with-tabs main .page {
+    padding-bottom: 0;
+  }
 }
 
 .narrow {

@@ -13,7 +13,7 @@
   .toaster {
     position: fixed;
     left: 50%;
-    bottom: calc(1rem + env(safe-area-inset-bottom));
+    bottom: calc(1rem + var(--tab-bar-safe));
     z-index: 40;
     display: grid;
     gap: 0.5rem;
@@ -34,7 +34,7 @@
 
   @media (max-width: 767px) {
     :global(.with-tabs) .toaster {
-      bottom: calc(4.4rem + env(safe-area-inset-bottom) + 0.75rem);
+      bottom: calc(var(--tab-bar-height) + var(--tab-bar-safe) + 0.75rem);
     }
   }
 </style>
