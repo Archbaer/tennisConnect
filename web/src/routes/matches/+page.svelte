@@ -270,27 +270,59 @@
     .matches-table tbody tr {
       padding-right: 6.8rem;
       touch-action: pan-y;
+      overflow: hidden;
+    }
+
+    .matches-table tbody tr::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      border-radius: inherit;
+      background: linear-gradient(180deg, var(--surface-top), var(--surface) 78%);
+      transform: translateX(var(--swipe-offset, 0px));
+      transition: transform 180ms ease;
+      pointer-events: none;
+    }
+
+    .matches-table tbody tr.new-match::before {
+      background: linear-gradient(150deg, rgb(216 255 62 / 14%), var(--surface) 62%);
+    }
+
+    .matches-table tbody td:not(.swipe-cue) {
+      transform: translateX(var(--swipe-offset, 0px));
+      transition: transform 180ms ease;
     }
 
     .matches-table tbody td:not(.swipe-cue):not(:last-child) {
       position: relative;
       z-index: 2;
-      transform: translateX(var(--swipe-offset, 0px));
-      transition: transform 180ms ease;
     }
 
-    .matches-table tbody tr:global(.is-swiping) td:not(.swipe-cue):not(:last-child) {
+    .matches-table tbody td:last-child {
+      z-index: 2;
+    }
+
+    .matches-table tbody tr:global(.is-swiping)::before,
+    .matches-table tbody tr:global(.is-swiping) td:not(.swipe-cue) {
       transition: none;
     }
 
     .swipe-cue {
       position: absolute;
-      inset: 0;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: auto;
       z-index: 0;
-      display: grid;
-      place-items: center;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      width: var(--swipe-reveal, 0px);
+      overflow: hidden;
       margin: 0;
       padding: 0;
+      border-radius: inherit;
       pointer-events: none;
     }
 
@@ -300,8 +332,10 @@
 
     .swipe-cue-label {
       display: inline-flex;
+      flex: 0 0 auto;
       align-items: center;
       gap: 0.35rem;
+      margin-right: 0.55rem;
       padding: 0.35rem 0.8rem;
       border-radius: 999px;
       background: var(--chip-bg);
@@ -309,21 +343,29 @@
       font-size: 0.78rem;
       font-weight: 800;
       letter-spacing: 0.02em;
-      opacity: 0;
-      transform: scale(0.94);
+      white-space: nowrap;
+      opacity: var(--swipe-progress, 0);
+      transform: scale(var(--swipe-scale, 0.82));
+      transform-origin: right center;
       transition: opacity 140ms ease, transform 140ms ease, box-shadow 140ms ease;
     }
 
-    .matches-table tbody tr:global(.is-revealed) .swipe-cue-label,
-    .matches-table tbody tr:global(.is-armed) .swipe-cue-label {
-      opacity: 1;
-      transform: none;
+    .matches-table tbody tr:global(.is-swiping) .swipe-cue-label {
+      transition: none;
     }
 
     .matches-table tbody tr:global(.is-armed) .swipe-cue-label {
       background: linear-gradient(180deg, #efff9e, var(--ball));
       color: #0a1714;
       box-shadow: 0 0 16px var(--ball-glow);
+    }
+
+    :global(html[data-bs-theme='dark']) .matches-table tbody tr::before {
+      background: linear-gradient(180deg, var(--surface-top), var(--surface) 78%);
+    }
+
+    :global(html[data-bs-theme='dark']) .matches-table tbody tr.new-match::before {
+      background: linear-gradient(150deg, rgb(216 255 62 / 7%), var(--surface) 62%);
     }
 
     .matches-table td[data-label='Player'] {
@@ -372,7 +414,8 @@
 
   @media (prefers-reduced-motion: reduce) {
     .matches-table tbody tr,
-    .matches-table tbody td:not(.swipe-cue):not(:last-child),
+    .matches-table tbody tr::before,
+    .matches-table tbody td:not(.swipe-cue),
     .swipe-cue-label {
       transition: none !important;
     }
