@@ -247,9 +247,7 @@
       <div class="upload-copy">
         <span class="chip" class:alert={uploadFailed}>{uploadFailed ? 'Upload failed' : stage || (processing ? 'Checking…' : 'Ready')}</span>
         {#if uploading}
-          <div class="progress" role="progressbar" aria-label="Photo upload" aria-valuenow={progress} aria-valuemin="0" aria-valuemax="100">
-            <div class="progress-bar" style={`width: ${progress}%`}></div>
-          </div>
+          <progress class="progress-track" value={progress} max="100" aria-label="Photo upload"></progress>
           <button class="btn btn-outline-secondary btn-sm" type="button" onclick={cancelUpload}>Cancel</button>
         {:else if uploadFailed}
           <button class="btn btn-outline-secondary btn-sm" type="button" onclick={retryUpload} disabled={!$online}>Try again</button>
@@ -323,7 +321,7 @@
     aspect-ratio: 1;
     object-fit: cover;
     border-radius: calc(var(--radius-control) - 4px);
-    background: #e5ebe6;
+    background: var(--media-bg);
   }
 
   .slot-empty,
@@ -336,8 +334,8 @@
   }
 
   .slot-status {
-    background: #f7e3dd;
-    color: var(--clay-deep);
+    background: var(--danger-bg);
+    color: var(--danger);
     border-style: solid;
   }
 
@@ -363,11 +361,6 @@
     display: grid;
     justify-items: start;
     gap: 0.5rem;
-  }
-
-  .progress {
-    width: 100%;
-    height: 0.5rem;
   }
 
   @media (max-width: 520px) {
