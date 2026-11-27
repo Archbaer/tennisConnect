@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { apiJSON, formatDate, type Match, type Profile } from '#lib/api';
+  import LoadingSkeleton from '#lib/LoadingSkeleton.svelte';
   import {
     activitySummary,
     buildDashboardMatches,
@@ -121,10 +122,8 @@
 </svelte:head>
 
 <section class="page stack dashboard-page">
-  <p class="visually-hidden" role="status">{loading ? 'Loading dashboard' : ''}</p>
-
   {#if loading}
-    <p role="status">Loading your dashboard…</p>
+    <LoadingSkeleton variant="dashboard" />
   {:else}
     {#if error}
       <p class="alert-box" role="alert">{error}</p>

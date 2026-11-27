@@ -2,6 +2,7 @@
   import { onMount, tick } from 'svelte';
   import { goto } from '$app/navigation';
   import { ApiError, apiJSON, distanceLabel, type DiscoveryCard } from '#lib/api';
+  import LoadingSkeleton from '#lib/LoadingSkeleton.svelte';
   import { noteMatchCreated } from '#lib/matchState';
   import { online } from '#lib/offline';
   import { loadRadius, saveRadius } from '#lib/preferences';
@@ -140,15 +141,7 @@
       <a class="btn btn-primary align-self-start" href="/onboarding">Finish setup</a>
     </div>
   {:else if loading && !cards.length}
-    <div class="media-card skeleton-card" aria-hidden="true">
-      <div class="skeleton-photo"></div>
-      <div class="skeleton-body">
-        <p class="placeholder col-7"></p>
-        <p class="placeholder col-4"></p>
-        <p class="placeholder col-10"></p>
-      </div>
-    </div>
-    <p class="visually-hidden" role="status">Loading players…</p>
+    <LoadingSkeleton variant="discover" />
   {:else if error}
     <div class="alert alert-danger stack" role="alert">
       <p class="mb-0">{error}</p>
@@ -314,20 +307,6 @@
     font-weight: 700;
     text-decoration: underline;
     text-underline-offset: 0.18em;
-  }
-
-  .skeleton-card {
-    min-height: 32rem;
-  }
-
-  .skeleton-photo {
-    width: 100%;
-    aspect-ratio: 4 / 3;
-    background: var(--media-bg);
-  }
-
-  .skeleton-body {
-    padding: 1.15rem;
   }
 
   .empty-ball {

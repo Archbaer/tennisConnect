@@ -10,6 +10,7 @@
     type DiscoveryDetail
   } from '#lib/api';
   import { playWindows, type PlayWindow } from '#lib/dashboard';
+  import LoadingSkeleton from '#lib/LoadingSkeleton.svelte';
   import { noteMatchCreated } from '#lib/matchState';
   import { online } from '#lib/offline';
   import SafetyDialog from '#lib/SafetyDialog.svelte';
@@ -100,7 +101,7 @@
   <a class="back" href="/discover"><i class="bi bi-arrow-left" aria-hidden="true"></i> Discover</a>
 
   {#if loading}
-    <p role="status">Loading player…</p>
+    <LoadingSkeleton variant="player" />
   {:else if !detail}
     <div class="sheet-card stack">
       <p class="alert-box mb-0" role="alert">{error}</p>
