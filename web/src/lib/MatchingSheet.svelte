@@ -126,7 +126,7 @@
     margin: auto;
     padding: 1.5rem;
     border: 1px solid var(--line);
-    border-radius: var(--radius);
+    border-radius: var(--radius-control);
     background: var(--surface);
     color: var(--ink);
     box-shadow: 0 28px 80px rgb(6 40 31 / 28%);
@@ -177,7 +177,7 @@
       width: 100%;
       max-height: 92dvh;
       margin: auto 0 0;
-      border-radius: var(--radius) var(--radius) 0 0;
+      border-radius: var(--radius-control) var(--radius-control) 0 0;
       padding: 1.25rem 1.25rem calc(1.25rem + env(safe-area-inset-bottom));
     }
   }

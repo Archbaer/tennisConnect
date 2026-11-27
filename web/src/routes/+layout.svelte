@@ -14,6 +14,10 @@
 
   const protectedPrefixes = ['/dashboard', '/discover', '/matches', '/profile', '/onboarding', '/settings', '/account'];
 
+  let signedIn = $derived($session === 'signed-in');
+  let pageTitle = $derived(titleFor(page.url.pathname));
+  let sectionTitle = $derived(sectionFor(page.url.pathname));
+
   function needsAccount(path: string): boolean {
     if (path === '/account/recovery') return false;
     return protectedPrefixes.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
@@ -25,6 +29,42 @@
 
   function isMatchReveal(path: string): boolean {
     return /^\/matches\/[^/]+\/new$/.test(path);
+  }
+
+  function sectionFor(path: string): string {
+    if (path.startsWith('/dashboard')) return 'Dashboard';
+    if (path.startsWith('/discover')) return 'Discover';
+    if (path.startsWith('/matches')) return 'Matches';
+    if (path.startsWith('/profile')) return 'Your card';
+    if (path.startsWith('/settings') || path.startsWith('/account')) return 'Account';
+    if (path.startsWith('/onboarding')) return 'Getting started';
+    if (path.startsWith('/reviewer')) return 'Internal';
+    if (path.startsWith('/appeal')) return 'Safety';
+    return 'Tennis Connect';
+  }
+
+  function titleFor(path: string): string {
+    if (path === '/') return 'Play more tennis';
+    if (path === '/dashboard') return 'Overview';
+    if (path === '/register') return 'Confirm your age';
+    if (path === '/check-inbox') return 'Check your inbox';
+    if (path === '/onboarding') return 'Set up your card';
+    if (path === '/discover') return 'Discover';
+    if (/^\/discover\/[^/]+$/.test(path)) return 'Player profile';
+    if (path === '/matches') return 'Matches';
+    if (/^\/matches\/[^/]+\/new$/.test(path)) return "It's a match";
+    if (/^\/matches\/[^/]+$/.test(path)) return 'Match';
+    if (path === '/profile') return 'You';
+    if (path === '/profile/edit') return 'Edit profile';
+    if (path === '/profile/photos') return 'Photos';
+    if (path === '/profile/play-times') return 'Play times';
+    if (path === '/settings') return 'Settings';
+    if (path === '/account/recovery') return 'Recover your account';
+    if (path === '/account/export') return 'Download your data';
+    if (path === '/account/delete') return 'Delete account';
+    if (path === '/appeal') return 'Appeal a suspension';
+    if (path === '/reviewer') return 'Reviewer console';
+    return 'Tennis Connect';
   }
 
   onMount(() => {
@@ -51,54 +91,133 @@
   <meta name="description" content="Meet adult tennis players near you, safely." />
 </svelte:head>
 
-<div class="app-shell" class:with-tabs={$session === 'signed-in' && !isMatchReveal(page.url.pathname)} class:match-reveal={isMatchReveal(page.url.pathname)}>
+<div
+  class="app-shell"
+  class:signed-in={signedIn}
+  class:with-tabs={signedIn && !isMatchReveal(page.url.pathname)}
+  class:match-reveal={isMatchReveal(page.url.pathname)}
+>
   <a class="skip-link" href="#main">Skip to content</a>
 
-  <header class="site-header">
-    <div class="page header-inner">
-      <a class="brand" href="/">
+  {#if signedIn}
+    <aside class="app-sidebar" aria-label="App navigation">
+      <a class="sidebar-brand" href="/">
         <span class="tennis-ball" aria-hidden="true"></span>
         Tennis Connect
       </a>
-      <div class="header-actions">
-        <nav class="nav nav-pills desktop-nav" aria-label="Primary">
-          {#if $session === 'signed-in'}
-            <a class="nav-link" class:active={isActive('/dashboard')} aria-current={isActive('/dashboard') ? 'page' : undefined} href="/dashboard"><i class="bi bi-grid-1x2" aria-hidden="true"></i> Dashboard</a>
-            <a class="nav-link" class:active={isActive('/discover')} aria-current={isActive('/discover') ? 'page' : undefined} href="/discover"><i class="bi bi-compass" aria-hidden="true"></i> Discover</a>
-            <a class="nav-link" class:active={isActive('/matches')} aria-current={isActive('/matches') ? 'page' : undefined} aria-label={$unrevealedMatches > 0 ? 'Matches, new match' : undefined} href="/matches"><i class="bi bi-people" aria-hidden="true"></i> Matches</a>
-            <a class="nav-link" class:active={isActive('/profile')} aria-current={isActive('/profile') ? 'page' : undefined} href="/profile"><i class="bi bi-person" aria-hidden="true"></i> You</a>
-            <a class="nav-link" class:active={isActive('/settings')} aria-current={isActive('/settings') ? 'page' : undefined} href="/settings"><i class="bi bi-sliders" aria-hidden="true"></i> Settings</a>
-          {:else if $session === 'suspended'}
-            <a class="nav-link" href="/appeal"><i class="bi bi-shield-exclamation" aria-hidden="true"></i> Appeal</a>
-          {:else}
-            <a class="btn btn-primary btn-sm" href="/#sign-in"><i class="bi bi-box-arrow-in-right" aria-hidden="true"></i> Sign in</a>
-          {/if}
-        </nav>
-        <button
-          class="theme-toggle"
-          type="button"
-          onclick={toggleTheme}
-          aria-label={$theme === 'dark' ? 'Use light theme' : 'Use dark theme'}
-          title={$theme === 'dark' ? 'Use light theme' : 'Use dark theme'}
-        >
-          <i class="bi" class:bi-sun={$theme === 'dark'} class:bi-moon-stars={$theme === 'light'} aria-hidden="true"></i>
-        </button>
-      </div>
-    </div>
-    <div class="net-line" aria-hidden="true"></div>
-  </header>
 
-  {#if !$online}
-    <div class="offline-banner" role="status" aria-live="polite">
-      You are offline. Saved screens still work; sending changes will wait until you reconnect.
-    </div>
+      <nav class="sidebar-nav" aria-label="Dashboard">
+        <a
+          class:active={isActive('/dashboard')}
+          aria-current={isActive('/dashboard') ? 'page' : undefined}
+          href="/dashboard"
+        >
+          <i class="bi bi-grid-1x2" aria-hidden="true"></i>
+          <span>Dashboard</span>
+        </a>
+        <a
+          class:active={isActive('/matches')}
+          aria-current={isActive('/matches') ? 'page' : undefined}
+          aria-label={$unrevealedMatches > 0 ? 'Matches, new match' : undefined}
+          href="/matches"
+        >
+          <i class="bi bi-people" aria-hidden="true"></i>
+          <span>Matches</span>
+          {#if $unrevealedMatches > 0}
+            <span class="nav-count" aria-hidden="true">{$unrevealedMatches}</span>
+          {/if}
+        </a>
+        <a
+          class:active={isActive('/discover')}
+          aria-current={isActive('/discover') ? 'page' : undefined}
+          href="/discover"
+        >
+          <i class="bi bi-compass" aria-hidden="true"></i>
+          <span>Discover</span>
+        </a>
+        <a
+          class:active={isActive('/profile')}
+          aria-current={isActive('/profile') ? 'page' : undefined}
+          href="/profile"
+        >
+          <i class="bi bi-person" aria-hidden="true"></i>
+          <span>You</span>
+        </a>
+        <a
+          class:active={isActive('/settings')}
+          aria-current={isActive('/settings') ? 'page' : undefined}
+          href="/settings"
+        >
+          <i class="bi bi-sliders" aria-hidden="true"></i>
+          <span>Settings</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-foot">
+        <p class="kicker">Private by design</p>
+        <p>Exact areas stay on the server. Photos are checked before anyone sees them.</p>
+      </div>
+    </aside>
   {/if}
 
-  <main id="main">
-    {@render children()}
-  </main>
+  <div class="app-column">
+    <header class="site-header">
+      <div class="page header-inner">
+        {#if signedIn}
+          <div class="topbar-copy">
+            <p class="topbar-kicker">{sectionTitle}</p>
+            {#if page.url.pathname === '/dashboard'}
+              <h1 class="topbar-title">Overview</h1>
+            {:else}
+              <p class="topbar-title">{pageTitle}</p>
+            {/if}
+          </div>
+        {:else}
+          <a class="brand" href="/">
+            <span class="tennis-ball" aria-hidden="true"></span>
+            Tennis Connect
+          </a>
+        {/if}
 
-  {#if $session === 'signed-in' && !isMatchReveal(page.url.pathname)}
+        <div class="header-actions">
+          {#if $session === 'suspended'}
+            <a class="btn btn-outline-secondary btn-sm" href="/appeal"><i class="bi bi-shield-exclamation" aria-hidden="true"></i> Appeal</a>
+          {:else if !signedIn}
+            <a class="btn btn-primary btn-sm" href="/#sign-in"><i class="bi bi-box-arrow-in-right" aria-hidden="true"></i> Sign in</a>
+          {/if}
+          <button
+            class="theme-toggle"
+            type="button"
+            onclick={toggleTheme}
+            aria-label={$theme === 'dark' ? 'Use light theme' : 'Use dark theme'}
+            title={$theme === 'dark' ? 'Use light theme' : 'Use dark theme'}
+          >
+            <i class="bi" class:bi-sun={$theme === 'dark'} class:bi-moon-stars={$theme === 'light'} aria-hidden="true"></i>
+          </button>
+        </div>
+      </div>
+      <div class="net-line" aria-hidden="true"></div>
+    </header>
+
+    {#if !$online}
+      <div class="offline-banner" role="status" aria-live="polite">
+        You are offline. Saved screens still work; sending changes will wait until you reconnect.
+      </div>
+    {/if}
+
+    <main id="main">
+      {@render children()}
+    </main>
+
+    <footer class="site-footer">
+      <div class="page d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <span class="muted"><span class="tennis-ball me-2" aria-hidden="true"></span>Adults only. UK tennis. Your area is never shown exactly.</span>
+        <a href="/#how">Privacy and safety</a>
+      </div>
+    </footer>
+  </div>
+
+  {#if signedIn && !isMatchReveal(page.url.pathname)}
     <nav class="tab-bar" aria-label="Primary mobile">
       <a href="/dashboard" class:active={isActive('/dashboard')} aria-current={isActive('/dashboard') ? 'page' : undefined}>
         <i class="bi bi-grid-1x2" aria-hidden="true"></i>
@@ -122,21 +241,107 @@
       </a>
     </nav>
   {/if}
-
-  <footer class="site-footer">
-    <div class="page d-flex flex-wrap justify-content-between align-items-center gap-2">
-      <span class="muted"><span class="tennis-ball me-2" aria-hidden="true"></span>Adults only. UK tennis. Your area is never shown exactly.</span>
-      <a href="/#how">Privacy and safety</a>
-    </div>
-  </footer>
 </div>
 
 <style>
+  .signed-in {
+    display: grid;
+    grid-template-columns: 15rem minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .app-sidebar {
+    position: sticky;
+    top: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    height: 100dvh;
+    padding: 1rem;
+    overflow-y: auto;
+    border-right: 1px solid var(--line);
+    background: var(--surface);
+  }
+
+  .sidebar-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.25rem;
+    color: var(--ink);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    text-decoration: none;
+  }
+
+  .sidebar-nav {
+    display: grid;
+    gap: 0.15rem;
+    font-size: 0.9rem;
+    font-weight: 700;
+  }
+
+  .sidebar-nav a {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.5rem 0.6rem;
+    border-radius: 10px;
+    color: var(--muted);
+    text-decoration: none;
+  }
+
+  .sidebar-nav a:hover {
+    background: var(--paper);
+    color: var(--court);
+  }
+
+  .sidebar-nav a.active {
+    background: var(--court);
+    color: white;
+  }
+
+  .nav-count {
+    display: inline-grid;
+    place-items: center;
+    min-width: 1.25rem;
+    height: 1.25rem;
+    margin-left: auto;
+    padding-inline: 0.3rem;
+    border-radius: 999px;
+    background: var(--ball);
+    color: #0a1714;
+    font-size: 0.68rem;
+    font-weight: 800;
+  }
+
+  .sidebar-foot {
+    margin-top: auto;
+    padding: 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-control);
+    background: var(--paper);
+  }
+
+  .sidebar-foot p:last-child {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.75rem;
+    line-height: 1.35;
+  }
+
+  .app-column {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 100dvh;
+  }
+
   .site-header {
-    background: rgb(247 249 244 / 94%);
     position: sticky;
     top: 0;
     z-index: 20;
+    background: var(--header-bg);
     backdrop-filter: blur(10px);
   }
 
@@ -146,6 +351,32 @@
     justify-content: space-between;
     gap: 1rem;
     padding-block: 0.7rem;
+  }
+
+  .topbar-copy {
+    min-width: 0;
+  }
+
+  .topbar-kicker {
+    margin: 0 0 0.1rem;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 0.64rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .topbar-title {
+    margin: 0;
+    font-size: clamp(1.25rem, 2.4vw, 1.55rem);
+    font-weight: 800;
+    letter-spacing: -0.035em;
+    line-height: 1.05;
+  }
+
+  h1.topbar-title {
+    font-size: clamp(1.6rem, 3vw, 2rem);
   }
 
   .header-actions {
@@ -179,45 +410,11 @@
     display: inline-flex;
     align-items: center;
     gap: 0.55rem;
+    color: var(--ink);
     font-weight: 800;
     letter-spacing: -0.03em;
-    color: var(--ink);
     text-decoration: none;
     white-space: nowrap;
-  }
-
-  .nav-pills {
-    gap: 0.15rem;
-    font-size: 0.9rem;
-    font-weight: 700;
-    flex-wrap: nowrap;
-  }
-
-  @media (min-width: 768px) and (max-width: 980px) {
-    .nav-pills {
-      font-size: 0.8rem;
-    }
-
-    .nav-pills .nav-link {
-      padding-inline: 0.5rem;
-    }
-  }
-
-  .nav-pills .nav-link {
-    color: var(--court);
-    border-radius: 999px;
-    padding: 0.4rem 0.7rem;
-  }
-
-  .nav-pills .nav-link:hover,
-  .nav-pills .nav-link:focus-visible {
-    background: #e5efeb;
-    color: var(--court-deep);
-  }
-
-  .nav-pills .nav-link.active {
-    background: var(--court);
-    color: white;
   }
 
   .net-line {
@@ -253,15 +450,14 @@
     text-align: center;
     font-weight: 700;
     color: var(--ink);
-    background: #f7e4e1;
-    border-bottom: 1px solid #e6c4bf;
+    background: var(--danger-bg);
+    border-bottom: 1px solid var(--line);
   }
 
   .tab-bar {
     display: none;
   }
 
-  .match-reveal .desktop-nav,
   .match-reveal .site-footer {
     display: none;
   }
@@ -270,8 +466,17 @@
     padding-bottom: 0;
   }
 
+  @media (max-width: 991px) {
+    .signed-in {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .app-sidebar {
+      display: none;
+    }
+  }
+
   @media (max-width: 767px) {
-    .with-tabs .desktop-nav,
     .with-tabs .site-footer {
       display: none;
     }
@@ -290,7 +495,7 @@
       grid-template-columns: repeat(5, minmax(0, 1fr));
       padding-bottom: env(safe-area-inset-bottom);
       border-top: 1px solid var(--line);
-      background: rgb(255 255 255 / 96%);
+      background: var(--tab-bg);
       backdrop-filter: blur(12px);
     }
 
@@ -313,7 +518,7 @@
 
     .tab-bar a.active {
       color: var(--court);
-      background: #eef4ef;
+      background: var(--tab-active-bg);
     }
 
     .tab-bar a.active i {

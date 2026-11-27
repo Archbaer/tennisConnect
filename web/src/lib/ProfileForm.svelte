@@ -222,7 +222,7 @@
 <style>
   fieldset {
     border: 1px solid var(--line);
-    border-radius: var(--radius);
+    border-radius: var(--radius-control);
     padding: 1rem;
   }
 

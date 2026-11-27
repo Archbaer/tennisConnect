@@ -50,7 +50,7 @@
     <div class="preview-photo">
       <div class="preview-fallback" aria-hidden="true">{initials}</div>
       {#if photoUrl}
-        <img src={photoUrl} alt={`${profile.display_name}'s photo`} onerror={(event) => ((event.currentTarget as HTMLImageElement).style.display = 'none')} />
+        <img src={photoUrl} alt={`${profile.display_name}'s photo`} onerror={(event) => ((event.currentTarget as HTMLImageElement).hidden = true)} />
       {/if}
       {#if area}<span class="chip preview-chip">{area}</span>{/if}
     </div>
@@ -85,7 +85,7 @@
     margin: auto;
     padding: 1.25rem;
     border: 1px solid var(--line);
-    border-radius: var(--radius);
+    border-radius: var(--radius-control);
     background: var(--surface);
     color: var(--ink);
     box-shadow: 0 28px 80px rgb(6 40 31 / 28%);
@@ -121,7 +121,7 @@
     aspect-ratio: 4 / 3;
     max-height: 18rem;
     overflow: hidden;
-    background: #dfe9df;
+    background: var(--media-bg);
   }
 
   .preview-photo img {
