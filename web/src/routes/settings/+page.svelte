@@ -3,7 +3,9 @@
   import { apiJSON } from '#lib/api';
   import AreaSheet from '#lib/AreaSheet.svelte';
   import Disclosure from '#lib/Disclosure.svelte';
+  import LoadingSkeleton from '#lib/LoadingSkeleton.svelte';
   import MatchingSheet from '#lib/MatchingSheet.svelte';
+  import { session } from '#lib/session';
 
   let areaSheet: { open: () => Promise<void> };
   let matchingSheet: { open: () => Promise<void> };
@@ -41,7 +43,10 @@
 
   <p class="visually-hidden" role="status" aria-live="polite">{status}</p>
 
-  <div class="settings-grid">
+  {#if $session === 'unknown'}
+    <LoadingSkeleton variant="settings" />
+  {:else}
+    <div class="settings-grid">
     <section class="sheet-card settings-card" aria-labelledby="settings-card-title">
       <h2 id="settings-card-title"><i class="bi bi-person-vcard me-2" aria-hidden="true"></i>Your card</h2>
       <a class="settings-row" href="/profile/edit">
@@ -112,7 +117,8 @@
         <i class="bi bi-chevron-right settings-chevron" aria-hidden="true"></i>
       </button>
     </section>
-  </div>
+    </div>
+  {/if}
 
   <AreaSheet bind:this={areaSheet} onSaved={areaSaved} />
   <MatchingSheet bind:this={matchingSheet} onSaved={matchingSaved} />

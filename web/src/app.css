@@ -34,6 +34,7 @@
   --info-ink: #0b3b2e;
   --info-line: #c2dfe6;
   --media-bg: #e5ebe6;
+  --skeleton-sheen: rgb(255 255 255 / 62%);
   --header-bg: rgb(247 249 244 / 84%);
   --tab-bg: rgb(255 255 255 / 86%);
   --tab-active-bg: #eef4ef;
@@ -962,6 +963,29 @@ progress.progress-track::-moz-progress-bar {
   text-align: center;
 }
 
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--media-bg);
+  box-shadow: inset 0 1px 0 var(--highlight);
+}
+
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 18%, var(--skeleton-sheen) 50%, transparent 82%);
+  transform: translateX(-120%);
+  animation: skeleton-sweep 1.5s ease-in-out infinite;
+}
+
+@keyframes skeleton-sweep {
+  to {
+    transform: translateX(120%);
+  }
+}
+
 .match-flood {
   position: relative;
   overflow: hidden;
@@ -1383,6 +1407,11 @@ progress.progress-track::-moz-progress-bar {
   .sidebar-nav a:hover {
     transform: none;
   }
+
+  .skeleton::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 
 @media (min-width: 768px) {
@@ -1558,6 +1587,7 @@ html[data-bs-theme='dark'] {
   --info-ink: #c8ecef;
   --info-line: #1f4a50;
   --media-bg: #1e2824;
+  --skeleton-sheen: rgb(255 255 255 / 8%);
   --header-bg: rgb(11 15 13 / 88%);
   --tab-bg: rgb(17 22 20 / 90%);
   --tab-active-bg: #1f2a25;
