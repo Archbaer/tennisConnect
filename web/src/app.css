@@ -1284,6 +1284,20 @@ progress.progress-track::-moz-progress-bar {
   color: var(--on-court);
 }
 
+.dotlist {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.35rem;
+  row-gap: 0.1rem;
+}
+
+.dotlist > * + *::before {
+  content: '·';
+  margin-right: 0.35rem;
+  color: var(--muted);
+}
+
 .meta {
   display: grid;
   gap: 0.35rem;
