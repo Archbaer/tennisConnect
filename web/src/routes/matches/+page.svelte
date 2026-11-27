@@ -117,11 +117,10 @@
                       {/if}
                       <span class="match-copy">
                         <strong>{match.display_name}</strong>
-                        <span class="muted">Matched {relativeDate(match.matched_at)}</span>
                       </span>
                     </a>
                   </td>
-                  <td data-label="Matched">{relativeDate(match.matched_at)}</td>
+                  <td data-label="Matched"><span class="mobile-only">Matched </span>{relativeDate(match.matched_at)}</td>
                   <td data-label="Status">
                     {#if !match.revealed}
                       <span class="chip optic">New match</span>
@@ -208,9 +207,9 @@
   }
 
   .thumb {
-    width: 2.5rem;
-    height: 2.5rem;
-    flex: 0 0 2.5rem;
+    width: 2.75rem;
+    height: 2.75rem;
+    flex: 0 0 2.75rem;
     border: 1px solid var(--line);
     border-radius: var(--radius-chip);
     object-fit: cover;
@@ -232,7 +231,56 @@
     font-size: 0.95rem;
   }
 
-  .match-copy .muted {
-    font-size: 0.78rem;
+  .mobile-only {
+    display: none;
+  }
+
+  @media (max-width: 767px) {
+    .mobile-only {
+      display: inline;
+    }
+
+    .matches-table td[data-label='Player'] {
+      order: 1;
+      flex: 1 1 10rem;
+    }
+
+    .matches-table td[data-label='Status'] {
+      order: 2;
+      margin-left: auto;
+    }
+
+    .matches-table tbody tr::after {
+      content: '';
+      order: 3;
+      flex-basis: 100%;
+      height: 0;
+    }
+
+    .matches-table td[data-label='Matched'] {
+      order: 4;
+    }
+
+    .matches-table td[data-label='Instagram'] {
+      order: 5;
+    }
+
+    .matches-table td[data-label='Matched'],
+    .matches-table td[data-label='Instagram'] {
+      color: var(--muted);
+      font-size: 0.8rem;
+      line-height: 1.3;
+    }
+
+    .matches-table td[data-label='Matched']::after {
+      content: '·';
+      margin-left: 0.35rem;
+    }
+
+    .matches-table .chip {
+      min-height: 1.5rem;
+      padding: 0.1rem 0.5rem;
+      font-size: 0.68rem;
+    }
   }
 </style>
