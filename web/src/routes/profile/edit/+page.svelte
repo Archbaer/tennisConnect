@@ -22,18 +22,18 @@
 </svelte:head>
 
 <section class="page narrow stack">
-  <div class="spread">
+  <header class="page-head">
     <div>
-      <p class="score">Your card</p>
+      <p class="kicker">Your card</p>
       <h1>Edit profile</h1>
     </div>
     <a href="/profile">Cancel</a>
-  </div>
+  </header>
 
   {#if loading}
     <p role="status">Loading profile…</p>
   {:else}
-    <div class="surface">
+    <div class="sheet-card">
       <ProfileForm
         initial={profile}
         submitLabel="Save changes"

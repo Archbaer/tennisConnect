@@ -68,17 +68,39 @@
       <a class="btn btn-outline-danger align-self-start" href="/matches">Back to matches</a>
     </div>
   {:else if match}
-    <a class="d-inline-flex align-items-center gap-1 text-decoration-none" href="/matches">
-      <i class="bi bi-arrow-left" aria-hidden="true"></i> Matches
-    </a>
-    <div class="d-flex justify-content-between align-items-start gap-3">
+    <a class="back" href="/matches"><i class="bi bi-arrow-left" aria-hidden="true"></i> Matches</a>
+
+    <header class="page-head">
       <div>
-        <p class="score mb-1"><span class="tennis-ball me-2" aria-hidden="true"></span>Mutual match</p>
+        <p class="kicker">Mutual match</p>
         <h1 class="mb-1">{match.display_name}</h1>
         <p class="muted mb-0">Matched {relativeDate(match.matched_at)}</p>
       </div>
-      <i class="bi bi-people fs-3 text-success" aria-hidden="true"></i>
-    </div>
+      <i class="bi bi-people match-icon" aria-hidden="true"></i>
+    </header>
+
+    <section class="kpi-strip" aria-label="Match stats">
+      <article class="kpi">
+        <h2 class="kpi-label">Visibility</h2>
+        <p class="kpi-value small">{match.revealed ? 'Revealed' : 'New'}</p>
+        <p class="kpi-delta">{match.revealed ? 'You have both opted in' : 'Open to reveal'}</p>
+      </article>
+      <article class="kpi">
+        <h2 class="kpi-label">Instagram</h2>
+        <p class="kpi-value small">{match.has_instagram ? 'Shared' : 'None'}</p>
+        <p class="kpi-delta">{match.has_instagram ? 'Handle available on request' : 'Not added'}</p>
+      </article>
+      <article class="kpi">
+        <h2 class="kpi-label">Photos</h2>
+        <p class="kpi-value">{match.photo_urls.length}</p>
+        <p class="kpi-delta">Approved photos</p>
+      </article>
+      <article class="kpi">
+        <h2 class="kpi-label">Matched</h2>
+        <p class="kpi-value small">{relativeDate(match.matched_at)}</p>
+        <p class="kpi-delta">Both said yes</p>
+      </article>
+    </section>
 
     {#if match.photo_urls.length}
       <div class="photo-grid">
@@ -92,7 +114,7 @@
       <p class="alert alert-danger" role="alert">{error}</p>
     {/if}
 
-    <div class="surface stack">
+    <div class="sheet-card stack">
       <div class="d-flex align-items-center gap-2">
         <i class="bi bi-instagram" aria-hidden="true"></i>
         <h2 class="mb-0">Instagram</h2>
@@ -120,7 +142,7 @@
       {/if}
     </div>
 
-    <div class="surface stack">
+    <div class="sheet-card stack">
       <h2>Safety</h2>
       <p class="muted">Blocking closes the match for both of you and stops new photo and handle access.</p>
       <div class="d-flex flex-wrap gap-2">
@@ -143,6 +165,18 @@
 </section>
 
 <style>
+  .back {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  .match-icon {
+    color: var(--success);
+  }
+
   .instagram {
     font-size: 1.5rem;
     font-weight: 800;
