@@ -854,8 +854,8 @@ progress.progress-track::-moz-progress-bar {
 
 .media-frame {
   position: relative;
+  width: 100%;
   aspect-ratio: 4 / 3;
-  max-height: 20rem;
   overflow: hidden;
   background: var(--media-bg);
 }

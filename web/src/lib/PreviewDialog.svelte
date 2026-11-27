@@ -118,8 +118,8 @@
 
   .preview-photo {
     position: relative;
+    width: 100%;
     aspect-ratio: 4 / 3;
-    max-height: 18rem;
     overflow: hidden;
     background: var(--media-bg);
   }
