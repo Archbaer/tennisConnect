@@ -124,28 +124,45 @@ test('@mobile tables reflow into labelled stacked cards', async ({ page }) => {
   const dashboard = await page.locator('.dashboard-table').evaluate((table) => {
     const row = table.querySelector('tbody tr');
     const cell = table.querySelector('tbody td[data-label="Opponent"]');
+    const action = table.querySelector('tbody td:last-child');
+    const id = table.querySelector('tbody td[data-label="ID"]');
     return {
       table: getComputedStyle(table).display,
       row: row ? getComputedStyle(row).display : '',
-      label: cell ? getComputedStyle(cell, '::before').content : ''
+      labelPosition: cell ? getComputedStyle(cell, '::before').position : '',
+      label: cell ? getComputedStyle(cell, '::before').content : '',
+      actionPosition: action ? getComputedStyle(action).position : '',
+      id: id ? getComputedStyle(id).display : '',
+      height: row ? row.getBoundingClientRect().height : 0
     };
   });
   expect(dashboard.table).toBe('block');
-  expect(dashboard.row).toBe('block');
+  expect(dashboard.row).toBe('flex');
+  expect(dashboard.labelPosition).toBe('absolute');
   expect(dashboard.label).toContain('Opponent');
+  expect(dashboard.actionPosition).toBe('absolute');
+  expect(dashboard.id).toBe('none');
+  expect(dashboard.height).toBeLessThan(120);
 
   await page.goto('/matches');
   await expect(page.getByRole('heading', { name: 'Matches', level: 1 })).toBeVisible();
   const matchRow = await page.locator('.matches-table').evaluate((table) => {
     const row = table.querySelector('tbody tr');
     const cell = table.querySelector('tbody td[data-label="Player"]');
+    const action = table.querySelector('tbody td:last-child');
     return {
       row: row ? getComputedStyle(row).display : '',
-      label: cell ? getComputedStyle(cell, '::before').content : ''
+      labelPosition: cell ? getComputedStyle(cell, '::before').position : '',
+      label: cell ? getComputedStyle(cell, '::before').content : '',
+      actionPosition: action ? getComputedStyle(action).position : '',
+      height: row ? row.getBoundingClientRect().height : 0
     };
   });
-  expect(matchRow.row).toBe('block');
+  expect(matchRow.row).toBe('flex');
+  expect(matchRow.labelPosition).toBe('absolute');
   expect(matchRow.label).toContain('Player');
+  expect(matchRow.actionPosition).toBe('absolute');
+  expect(matchRow.height).toBeLessThan(120);
 });
 
 test('@mobile collapsible feature cards toggle open and closed', async ({ page }) => {
