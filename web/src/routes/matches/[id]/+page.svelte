@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { apiJSON, relativeDate, type Match } from '#lib/api';
+  import Avatar from '#lib/Avatar.svelte';
   import LoadingSkeleton from '#lib/LoadingSkeleton.svelte';
   import SafetyDialog from '#lib/SafetyDialog.svelte';
 
@@ -66,10 +67,13 @@
     <a class="back" href="/matches"><i class="bi bi-arrow-left" aria-hidden="true"></i> Matches</a>
 
     <header class="page-head">
-      <div>
-        <p class="kicker">Mutual match</p>
-        <h1 class="mb-1">{match.display_name}</h1>
-        <p class="muted mb-0">Matched {relativeDate(match.matched_at)}</p>
+      <div class="match-head">
+        <Avatar name={match.display_name} src={match.photo_urls[0] ?? ''} size="md" decorative />
+        <div>
+          <p class="kicker">Mutual match</p>
+          <h1 class="mb-1">{match.display_name}</h1>
+          <p class="muted mb-0">Matched {relativeDate(match.matched_at)}</p>
+        </div>
       </div>
       <i class="bi bi-people match-icon" aria-hidden="true"></i>
     </header>
@@ -100,7 +104,12 @@
     {#if match.photo_urls.length}
       <div class="photo-grid">
         {#each match.photo_urls as url, index}
-          <img class="photo" src={url} alt={`${match.display_name}, photo ${index + 1}`} />
+          <img
+            class="photo"
+            src={url}
+            alt={`${match.display_name}, photo ${index + 1}`}
+            onerror={(event) => ((event.currentTarget as HTMLImageElement).hidden = true)}
+          />
         {/each}
       </div>
     {/if}
@@ -166,6 +175,13 @@
     gap: 0.35rem;
     font-weight: 700;
     text-decoration: none;
+  }
+
+  .match-head {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 0;
   }
 
   .match-icon {

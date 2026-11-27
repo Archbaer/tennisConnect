@@ -245,7 +245,7 @@
 
   {#if previewUrl}
     <div class="upload-preview">
-      <img src={previewUrl} alt="Upload preview" />
+      <img src={previewUrl} alt="Upload preview" onerror={(event) => ((event.currentTarget as HTMLImageElement).hidden = true)} />
       <div class="upload-copy">
         <span class="chip" class:alert={uploadFailed}>{uploadFailed ? 'Upload failed' : stage || (processing ? 'Checking…' : 'Ready')}</span>
         {#if uploading}
@@ -263,7 +263,12 @@
       {@const photo = photoAt(order)}
       <div class="slot" role="listitem">
         {#if photo && photo.status !== 'rejected' && urls[photo.photo_id]}
-          <img class="slot-photo" src={urls[photo.photo_id]} alt={`Photo ${order}`} />
+          <img
+            class="slot-photo"
+            src={urls[photo.photo_id]}
+            alt={`Photo ${order}`}
+            onerror={(event) => ((event.currentTarget as HTMLImageElement).hidden = true)}
+          />
         {:else if photo && photo.status === 'rejected'}
           <div class="slot-photo slot-status"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></div>
         {:else}

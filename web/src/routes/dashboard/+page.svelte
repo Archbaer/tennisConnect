@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { apiJSON, formatDate, type Match, type Profile } from '#lib/api';
+  import Avatar from '#lib/Avatar.svelte';
   import LoadingSkeleton from '#lib/LoadingSkeleton.svelte';
   import {
     activitySummary,
@@ -342,7 +343,12 @@
             {#each filtered as match (match.matchId)}
               <tr>
                 <td data-label="ID"><span class="mono">{match.id}</span></td>
-                <td data-label="Opponent">{match.opponent}</td>
+                <td data-label="Opponent">
+                  <span class="opponent">
+                    <Avatar name={match.opponent} src={match.photoUrl ?? ''} size="xs" decorative />
+                    {match.opponent}
+                  </span>
+                </td>
                 <td data-label="Score">{match.score}</td>
                 <td data-label="Venue">{match.venue}</td>
                 <td data-label="Result">
@@ -568,6 +574,13 @@
     font-size: 0.78rem;
   }
 
+  .opponent {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
   .table-head {
     align-items: flex-start;
   }
@@ -651,10 +664,11 @@
       line-height: 1.3;
     }
 
-    .dashboard-table td[data-label='Score']::after,
-    .dashboard-table td[data-label='Venue']::after {
+    .dashboard-table td[data-label='Venue']::before,
+    .dashboard-table td[data-label='Updated']::before {
       content: '·';
-      margin-left: 0.35rem;
+      margin-right: 0.35rem;
+      color: var(--muted);
     }
 
     .dashboard-table .chip {
