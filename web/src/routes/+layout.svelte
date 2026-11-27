@@ -101,61 +101,63 @@
 
   {#if signedIn}
     <aside class="app-sidebar" aria-label="App navigation">
-      <a class="sidebar-brand" href="/">
-        <span class="tennis-ball" aria-hidden="true"></span>
-        Tennis Connect
-      </a>
+      <div class="sidebar-inner">
+        <a class="sidebar-brand" href="/">
+          <span class="tennis-ball" aria-hidden="true"></span>
+          Tennis Connect
+        </a>
 
-      <nav class="sidebar-nav" aria-label="Dashboard">
-        <a
-          class:active={isActive('/dashboard')}
-          aria-current={isActive('/dashboard') ? 'page' : undefined}
-          href="/dashboard"
-        >
-          <i class="bi bi-grid-1x2" aria-hidden="true"></i>
-          <span>Dashboard</span>
-        </a>
-        <a
-          class:active={isActive('/matches')}
-          aria-current={isActive('/matches') ? 'page' : undefined}
-          aria-label={$unrevealedMatches > 0 ? 'Matches, new match' : undefined}
-          href="/matches"
-        >
-          <i class="bi bi-people" aria-hidden="true"></i>
-          <span>Matches</span>
-          {#if $unrevealedMatches > 0}
-            <span class="nav-count" aria-hidden="true">{$unrevealedMatches}</span>
-          {/if}
-        </a>
-        <a
-          class:active={isActive('/discover')}
-          aria-current={isActive('/discover') ? 'page' : undefined}
-          href="/discover"
-        >
-          <i class="bi bi-compass" aria-hidden="true"></i>
-          <span>Discover</span>
-        </a>
-        <a
-          class:active={isActive('/profile')}
-          aria-current={isActive('/profile') ? 'page' : undefined}
-          href="/profile"
-        >
-          <i class="bi bi-person" aria-hidden="true"></i>
-          <span>You</span>
-        </a>
-        <a
-          class:active={isActive('/settings')}
-          aria-current={isActive('/settings') ? 'page' : undefined}
-          href="/settings"
-        >
-          <i class="bi bi-sliders" aria-hidden="true"></i>
-          <span>Settings</span>
-        </a>
-      </nav>
+        <nav class="sidebar-nav" aria-label="Dashboard">
+          <a
+            class:active={isActive('/dashboard')}
+            aria-current={isActive('/dashboard') ? 'page' : undefined}
+            href="/dashboard"
+          >
+            <i class="bi bi-grid-1x2" aria-hidden="true"></i>
+            <span>Dashboard</span>
+          </a>
+          <a
+            class:active={isActive('/matches')}
+            aria-current={isActive('/matches') ? 'page' : undefined}
+            aria-label={$unrevealedMatches > 0 ? 'Matches, new match' : undefined}
+            href="/matches"
+          >
+            <i class="bi bi-people" aria-hidden="true"></i>
+            <span>Matches</span>
+            {#if $unrevealedMatches > 0}
+              <span class="nav-count" aria-hidden="true">{$unrevealedMatches}</span>
+            {/if}
+          </a>
+          <a
+            class:active={isActive('/discover')}
+            aria-current={isActive('/discover') ? 'page' : undefined}
+            href="/discover"
+          >
+            <i class="bi bi-compass" aria-hidden="true"></i>
+            <span>Discover</span>
+          </a>
+          <a
+            class:active={isActive('/profile')}
+            aria-current={isActive('/profile') ? 'page' : undefined}
+            href="/profile"
+          >
+            <i class="bi bi-person" aria-hidden="true"></i>
+            <span>You</span>
+          </a>
+          <a
+            class:active={isActive('/settings')}
+            aria-current={isActive('/settings') ? 'page' : undefined}
+            href="/settings"
+          >
+            <i class="bi bi-sliders" aria-hidden="true"></i>
+            <span>Settings</span>
+          </a>
+        </nav>
 
-      <div class="sidebar-foot">
-        <p class="kicker">Private by design</p>
-        <p>Exact areas stay on the server. Photos are checked before anyone sees them.</p>
+        <div class="sidebar-foot">
+          <p class="kicker">Private by design</p>
+          <p>Exact areas stay on the server. Photos are checked before anyone sees them.</p>
+        </div>
       </div>
     </aside>
   {/if}
@@ -247,10 +249,17 @@
   .signed-in {
     display: grid;
     grid-template-columns: 15rem minmax(0, 1fr);
-    align-items: start;
+    align-items: stretch;
   }
 
   .app-sidebar {
+    position: relative;
+    min-width: 0;
+    border-right: 1px solid var(--line);
+    background: var(--surface);
+  }
+
+  .sidebar-inner {
     position: sticky;
     top: 0;
     display: flex;
@@ -259,8 +268,6 @@
     height: 100dvh;
     padding: 1rem;
     overflow-y: auto;
-    border-right: 1px solid var(--line);
-    background: var(--surface);
   }
 
   .sidebar-brand {

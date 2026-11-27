@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { apiJSON, type Photo, type Profile } from '#lib/api';
+  import { apiJSON, type Photo, type Profile, weekdayName } from '#lib/api';
   import { playWindows, type PlayWindow } from '#lib/dashboard';
   import AreaSheet from '#lib/AreaSheet.svelte';
   import PreviewDialog from '#lib/PreviewDialog.svelte';
@@ -192,7 +192,7 @@
       </div>
       <ul class="plain-list">
         {#each profile.availability as slot}
-          <li>Day {slot.weekday}, {slot.start}–{slot.end}</li>
+          <li>{weekdayName(slot.weekday)}, {slot.start}–{slot.end}</li>
         {/each}
       </ul>
     </section>
@@ -221,10 +221,6 @@
 <style>
   .profile-page {
     width: min(100% - 1.5rem, 46rem);
-  }
-
-  .profile-photo {
-    max-height: 22rem;
   }
 
   .level {

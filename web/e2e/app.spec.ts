@@ -89,7 +89,7 @@ test('discover opens the full player detail', async ({ page }) => {
   await page.getByRole('link', { name: 'View full profile' }).click();
   await expect(page).toHaveURL(/\/discover\/11111111-1111-4111-8111-111111111111\?radius=10$/);
   await expect(page.getByRole('heading', { name: 'Priya, 32' })).toBeVisible();
-  await expect(page.getByText('Tue 18:00–21:00')).toBeVisible();
+  await expect(page.getByText('Tuesday, 18:00–21:00')).toBeVisible();
 });
 
 test('discover safety dialog names the player and offers block', async ({ page }) => {

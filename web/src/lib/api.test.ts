@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { distanceLabel, reportCategories, weekdayLabel } from './api';
+import { distanceLabel, reportCategories, weekdayLabel, weekdayName } from './api';
 
 describe('distanceLabel', () => {
   it('uses the under-one-mile copy for zero', () => {
@@ -16,6 +16,12 @@ describe('weekdayLabel', () => {
   it('uses ISO weekday numbering', () => {
     expect(weekdayLabel(1)).toBe('Mon');
     expect(weekdayLabel(7)).toBe('Sun');
+  });
+
+  it('provides full weekday names for text lists', () => {
+    expect(weekdayName(1)).toBe('Monday');
+    expect(weekdayName(2)).toBe('Tuesday');
+    expect(weekdayName(7)).toBe('Sunday');
   });
 });
 

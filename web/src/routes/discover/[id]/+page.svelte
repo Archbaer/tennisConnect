@@ -6,6 +6,7 @@
     apiJSON,
     distanceLabel,
     weekdayLabel,
+    weekdayName,
     type DiscoveryDetail
   } from '#lib/api';
   import { playWindows, type PlayWindow } from '#lib/dashboard';
@@ -158,7 +159,7 @@
           <h2 id="detail-times" class="mb-0">Play times</h2>
           <ul class="plain-list times">
             {#each detail.player.availability as slot}
-              <li>{weekdayLabel(slot.weekday)} {slot.start}–{slot.end}</li>
+              <li>{weekdayName(slot.weekday)}, {slot.start}–{slot.end}</li>
             {/each}
           </ul>
 
