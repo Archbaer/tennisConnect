@@ -84,10 +84,10 @@
     width: min(100%, 30rem);
     overflow: hidden;
     border-radius: var(--radius-control);
-    background: linear-gradient(165deg, #0e5a3a, var(--court-deep) 62%);
-    color: white;
+    background: linear-gradient(165deg, var(--reveal-start), var(--court-deep) 62%);
+    color: var(--on-court);
     padding: 2rem 1.4rem;
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 12%), var(--tc-shadow-3);
+    box-shadow: inset 0 1px 0 var(--highlight-soft), var(--tc-shadow-3);
   }
 
   .flood {
@@ -115,7 +115,7 @@
   }
 
   .reveal-copy h1 {
-    color: white;
+    color: var(--on-court);
     font-size: clamp(2.6rem, 12vw, 4rem);
     max-width: 8ch;
   }
@@ -125,7 +125,7 @@
   }
 
   .reveal-sub {
-    color: #dce8e2;
+    color: var(--on-court-muted);
     font-size: 1.1rem;
     font-weight: 600;
     max-width: 24ch;
@@ -140,9 +140,9 @@
 
   .reveal-stats span {
     padding: 0.2rem 0.6rem;
-    border: 1px solid rgb(255 255 255 / 28%);
+    border: 1px solid var(--on-court-line);
     border-radius: 999px;
-    color: #dce8e2;
+    color: var(--on-court-muted);
     font-family: var(--font-mono);
     font-size: 0.66rem;
     letter-spacing: 0.04em;

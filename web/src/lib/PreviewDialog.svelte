@@ -140,7 +140,7 @@
     display: grid;
     place-items: center;
     background:
-      linear-gradient(135deg, rgb(216 255 62 / 18%), transparent 55%),
+      linear-gradient(135deg, rgb(var(--rgb-ball) / 18%), transparent 55%),
       linear-gradient(160deg, var(--court-light), var(--court-deep));
     color: var(--ball);
     font-size: 4rem;
@@ -151,7 +151,7 @@
     position: absolute;
     left: 0.75rem;
     top: 0.75rem;
-    background: rgb(255 255 255 / 92%);
+    background: var(--glass-surface);
   }
 
   .preview-body {
@@ -187,7 +187,7 @@
   .week-strip span.active {
     border-color: var(--court);
     background: var(--court);
-    color: white;
+    color: var(--on-court);
   }
 
   .meta {
