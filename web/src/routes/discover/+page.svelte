@@ -99,13 +99,13 @@
 </svelte:head>
 
 <section class="page discover-page stack">
-  <div class="discover-head">
+  <header class="discover-head">
     <div>
-      <p class="score mb-1"><span class="tennis-ball me-2" aria-hidden="true"></span>Discover</p>
+      <p class="kicker">Discover</p>
       <h1 class="mb-0">Players near you</h1>
     </div>
     <label class="radius">
-      <span class="score">Radius</span>
+      <span class="kicker">Radius</span>
       <select class="form-select" bind:value={radius} onchange={() => { saveRadius(radius); load(true); }}>
         <option value={5}>5 miles</option>
         <option value={10}>10 miles</option>
@@ -113,7 +113,25 @@
         <option value={30}>30 miles</option>
       </select>
     </label>
-  </div>
+  </header>
+
+  <section class="kpi-strip three" aria-label="Discovery tracker">
+    <article class="kpi">
+      <h2 class="kpi-label">Radius</h2>
+      <p class="kpi-value">{radius}<span class="kpi-unit">mi</span></p>
+      <p class="kpi-delta">Search area</p>
+    </article>
+    <article class="kpi">
+      <h2 class="kpi-label">In deck</h2>
+      <p class="kpi-value">{cards.length}</p>
+      <p class="kpi-delta">{cursor ? 'More available' : 'Last cards'}</p>
+    </article>
+    <article class="kpi">
+      <h2 class="kpi-label">Waiting</h2>
+      <p class="kpi-value">{Math.max(cards.length - 1, 0)}</p>
+      <p class="kpi-delta">After this card</p>
+    </article>
+  </section>
 
   {#if blockedReason}
     <div class="alert alert-warning stack" role="alert">
@@ -122,7 +140,7 @@
       <a class="btn btn-primary align-self-start" href="/onboarding">Finish setup</a>
     </div>
   {:else if loading && !cards.length}
-    <div class="player-card skeleton-card" aria-hidden="true">
+    <div class="media-card skeleton-card" aria-hidden="true">
       <div class="skeleton-photo"></div>
       <div class="skeleton-body">
         <p class="placeholder col-7"></p>
@@ -137,7 +155,7 @@
       <button class="btn btn-outline-danger align-self-start" onclick={() => load(true)}>Try again</button>
     </div>
   {:else if !card}
-    <div class="surface stack text-center">
+    <div class="sheet-card stack empty-state">
       <div class="empty-ball mx-auto" aria-hidden="true"></div>
       <h2>No one in range right now</h2>
       <p class="muted">Try a wider radius, add play times, or check your area.</p>
@@ -147,19 +165,19 @@
       </div>
     </div>
   {:else}
-    <article class="player-card" aria-labelledby={`name-${card.player.player_id}`}>
-      <div class="photo-wrap">
-        <div class="photo-fallback" aria-hidden="true">
+    <article class="media-card" aria-labelledby={`name-${card.player.player_id}`}>
+      <div class="media-frame">
+        <div class="media-fallback" aria-hidden="true">
           <span>{initials(card.player.display_name)}</span>
         </div>
         {#if card.player.photo_urls.length}
           <img
             src={card.player.photo_urls[0]}
             alt={`${card.player.display_name}'s photo`}
-            onerror={(event) => ((event.currentTarget as HTMLImageElement).style.display = 'none')}
+            onerror={(event) => ((event.currentTarget as HTMLImageElement).hidden = true)}
           />
         {/if}
-        <span class="chip photo-chip">{distanceLabel(card.player.distance_miles)}</span>
+        <span class="chip media-chip">{distanceLabel(card.player.distance_miles)}</span>
         <button
           class="icon-button card-safety"
           type="button"
@@ -170,12 +188,12 @@
         </button>
       </div>
 
-      <div class="card-body">
+      <div class="media-body">
         <div class="name-row">
           <h2 id={`name-${card.player.player_id}`} class="mb-0">
             {card.player.display_name}, {card.player.age}
           </h2>
-          <span class="chip">{card.player.skill_level}</span>
+          <span class="chip level">{card.player.skill_level}</span>
         </div>
 
         <div class="week-strip" aria-hidden="true">
@@ -186,16 +204,16 @@
 
         <dl class="meta">
           <div>
-            <dt class="score">Plays</dt>
+            <dt class="kicker">Plays</dt>
             <dd>{card.player.play_summary || 'No shared times listed'}</dd>
           </div>
           <div>
-            <dt class="score">Distance</dt>
+            <dt class="kicker">Distance</dt>
             <dd>{distanceLabel(card.player.distance_miles)}</dd>
           </div>
         </dl>
 
-        {#if card.player.bio}<p class="bio muted">{card.player.bio}</p>{/if}
+        {#if card.player.bio}<p class="bio clamp">{card.player.bio}</p>{/if}
         <a class="profile-link" href={`/discover/${card.player.player_id}?radius=${radius}`}>
           View full profile
         </a>
@@ -269,7 +287,7 @@
   }
 
   .discover-head h1 {
-    font-size: clamp(1.5rem, 4vw, 2rem);
+    font-size: clamp(1.6rem, 4vw, 2rem);
     line-height: 1.05;
   }
 
@@ -283,132 +301,8 @@
     padding-block: 0.4rem;
   }
 
-  .player-card {
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    background: var(--surface);
-    box-shadow: var(--shadow);
-  }
-
-  .photo-wrap {
-    position: relative;
-    aspect-ratio: 4 / 3;
-    max-height: 20rem;
-    overflow: hidden;
-    background: #dfe9df;
-  }
-
-  .photo-wrap img {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  .photo-fallback {
-    position: absolute;
-    inset: 0;
-    display: grid;
-    place-items: center;
-    background:
-      linear-gradient(135deg, rgb(216 255 62 / 18%), transparent 55%),
-      linear-gradient(160deg, var(--court-light), var(--court-deep));
-    color: var(--ball);
-    font-size: clamp(4rem, 18vw, 7rem);
-    font-weight: 800;
-    letter-spacing: -0.06em;
-  }
-
-  .photo-fallback::before {
-    content: '';
-    position: absolute;
-    inset: 8%;
-    border: 2px solid rgb(247 249 244 / 32%);
-    border-radius: 50%;
-    transform: rotate(-12deg);
-  }
-
-  .photo-chip {
-    position: absolute;
-    left: 0.75rem;
-    top: 0.75rem;
-    background: rgb(255 255 255 / 92%);
-    backdrop-filter: blur(6px);
-  }
-
-  .card-safety {
-    position: absolute;
-    right: 0.75rem;
-    top: 0.75rem;
-  }
-
-  .card-body {
-    display: grid;
-    gap: 0.55rem;
-    padding: 1rem;
-  }
-
-  .name-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-  }
-
-  .name-row h2 {
-    font-size: clamp(1.45rem, 5.5vw, 1.85rem);
-  }
-
-  .week-strip {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 0.3rem;
-  }
-
-  .week-strip span {
-    display: grid;
-    place-items: center;
-    min-height: 1.75rem;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-chip);
-    color: var(--muted);
-    font-size: 0.72rem;
-    font-weight: 700;
-  }
-
-  .week-strip span.active {
-    border-color: var(--court);
-    background: var(--court);
-    color: white;
-  }
-
-  .meta {
-    display: grid;
-    gap: 0.35rem;
-    margin: 0;
-    padding-block: 0.45rem;
-    border-block: 1px solid var(--line);
-  }
-
-  .meta > div {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 1rem;
-  }
-
-  .meta dt {
-    color: var(--muted);
-  }
-
-  .meta dd {
-    margin: 0;
-    text-align: right;
-    font-weight: 700;
+  .level {
+    text-transform: capitalize;
   }
 
   .profile-link {
@@ -418,32 +312,6 @@
     text-underline-offset: 0.18em;
   }
 
-  .bio {
-    display: -webkit-box;
-    overflow: hidden;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    margin: 0;
-  }
-
-  .card-actions {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.6rem;
-  }
-
-  .card-actions .btn {
-    min-height: 2.8rem;
-  }
-
-  .confirm-pass {
-    padding: 0.75rem;
-    border: 1px solid #e6c4bf;
-    border-radius: var(--radius-control);
-    background: #fbefeb;
-  }
-
   .skeleton-card {
     min-height: 32rem;
   }
@@ -451,11 +319,18 @@
   .skeleton-photo {
     aspect-ratio: 4 / 3;
     max-height: 20rem;
-    background: #e3ece5;
+    background: var(--media-bg);
   }
 
   .skeleton-body {
     padding: 1.15rem;
+  }
+
+  .empty-ball {
+    width: 4rem;
+    height: 4rem;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #f0ff9b, var(--ball) 55%, var(--ball-deep));
   }
 
   @media (max-width: 360px) {

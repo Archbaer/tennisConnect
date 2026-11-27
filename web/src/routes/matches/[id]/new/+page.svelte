@@ -47,9 +47,14 @@
     <div class="reveal-card">
       <div class="flood" aria-hidden="true"></div>
       <div class="reveal-copy">
-        <p class="score mb-2">It's a match</p>
+        <p class="kicker mb-2">It's a match</p>
         <h1 id="reveal-title" tabindex="-1" bind:this={heading}>You're both in.</h1>
         <p class="reveal-sub">You and {match.display_name} both said yes to a game.</p>
+        <div class="reveal-stats" aria-hidden="true">
+          <span>Match confirmed</span>
+          <span>Instagram unlocks</span>
+          <span>Meet on court</span>
+        </div>
         <div class="reveal-actions">
           <a class="btn btn-primary" href={`/matches/${match.match_id}`}>See match</a>
           <button class="btn btn-outline-light" type="button" onclick={() => goto('/discover')}>Keep looking</button>
@@ -64,9 +69,9 @@
 
 <style>
   .reveal-page {
-    min-height: calc(100dvh - 4.5rem);
     display: grid;
     place-items: center;
+    min-height: calc(100dvh - 4.5rem);
     padding: 1rem;
     background: var(--court-deep);
   }
@@ -78,7 +83,7 @@
     min-height: 70dvh;
     width: min(100%, 30rem);
     overflow: hidden;
-    border-radius: var(--radius);
+    border-radius: var(--radius-control);
     background: linear-gradient(165deg, #0e5a3a, var(--court-deep) 62%);
     color: white;
     padding: 2rem 1.4rem;
@@ -115,7 +120,7 @@
     max-width: 8ch;
   }
 
-  .reveal-copy .score {
+  .reveal-copy .kicker {
     color: var(--ball);
   }
 
@@ -124,6 +129,24 @@
     font-size: 1.1rem;
     font-weight: 600;
     max-width: 24ch;
+  }
+
+  .reveal-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    padding-block: 0.25rem;
+  }
+
+  .reveal-stats span {
+    padding: 0.2rem 0.6rem;
+    border: 1px solid rgb(255 255 255 / 28%);
+    border-radius: 999px;
+    color: #dce8e2;
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
   }
 
   .reveal-actions {

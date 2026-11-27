@@ -10,6 +10,14 @@
   let safetyTarget: Match | null = null;
   let safety: { openReport: () => Promise<void>; openBlock: () => Promise<void> };
 
+  $: total = matches.length;
+  $: unrevealed = matches.filter((match) => !match.revealed).length;
+  $: thisMonth = matches.filter((match) => {
+    const date = new Date(match.matched_at);
+    const now = new Date();
+    return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
+  }).length;
+
   onMount(async () => {
     try {
       matches = (await apiJSON<{ matches: Match[] }>('/api/v1/matches')).matches;
@@ -42,51 +50,107 @@
 </svelte:head>
 
 <section class="page matches-page stack">
-  <div>
-    <p class="score mb-1"><span class="tennis-ball me-2" aria-hidden="true"></span>Mutual</p>
-    <h1>Matches</h1>
-  </div>
+  <header class="page-head">
+    <div>
+      <p class="kicker">Mutual</p>
+      <h1>Matches</h1>
+    </div>
+    <a class="btn btn-primary btn-sm" href="/discover"><i class="bi bi-compass" aria-hidden="true"></i> Discover</a>
+  </header>
 
   {#if loading}
     <p role="status">Loading matches…</p>
   {:else if error}
     <p class="alert-box" role="alert">{error}</p>
-  {:else if !matches.length}
-    <div class="surface stack">
-      <h2>No matches yet</h2>
-      <p class="muted">A match appears only when you and another player both choose “I'd play”.</p>
-      <a class="btn btn-primary align-self-start" href="/discover">Go to Discover</a>
-    </div>
   {:else}
-    <ul class="match-list">
-      {#each matches as match (match.match_id)}
-        <li class="match-row" class:new-match={!match.revealed}>
-          <a href={`/matches/${match.match_id}`} class="match-link">
-            {#if match.photo_urls.length}
-              <img class="photo thumb" src={match.photo_urls[0]} alt="" />
-            {:else}
-              <div class="photo thumb placeholder" aria-hidden="true"></div>
-            {/if}
-            <span class="match-copy">
-              <strong>{match.display_name}</strong>
-              <span class="muted">Matched {relativeDate(match.matched_at)}</span>
-              {#if !match.revealed}<span class="chip optic">New match</span>{/if}
-              <span class="chip" class:optic={match.has_instagram}>
-                <i class="bi bi-instagram me-1" aria-hidden="true"></i>{match.has_instagram ? 'Instagram available' : 'No Instagram'}
-              </span>
-            </span>
-          </a>
-          <button
-            class="icon-button dark"
-            type="button"
-            onclick={() => openSafety(match, 'report')}
-            aria-label={`Safety options for ${match.display_name}`}
-          >
-            <i class="bi bi-flag" aria-hidden="true"></i>
-          </button>
-        </li>
-      {/each}
-    </ul>
+    <section class="kpi-strip three" aria-label="Match metrics">
+      <article class="kpi">
+        <h2 class="kpi-label">Total matches</h2>
+        <p class="kpi-value">{total}</p>
+        <p class="kpi-delta">All time</p>
+      </article>
+      <article class="kpi">
+        <h2 class="kpi-label">New matches</h2>
+        <p class="kpi-value">{unrevealed}</p>
+        <p class="kpi-delta">{unrevealed ? 'Waiting to reveal' : 'All revealed'}</p>
+      </article>
+      <article class="kpi">
+        <h2 class="kpi-label">This month</h2>
+        <p class="kpi-value">{thisMonth}</p>
+        <p class="kpi-delta">New connections</p>
+      </article>
+    </section>
+
+    {#if !matches.length}
+      <div class="sheet-card stack empty-state">
+        <h2>No matches yet</h2>
+        <p class="muted">A match appears only when you and another player both choose “I'd play”.</p>
+        <a class="btn btn-primary align-self-start" href="/discover">Go to Discover</a>
+      </div>
+    {:else}
+      <section class="sheet-card" aria-labelledby="match-list-title">
+        <div class="spread list-head">
+          <h2 id="match-list-title" class="mb-0">Your matches</h2>
+          <span class="muted">Newest first</span>
+        </div>
+        <div class="data-table-wrap">
+          <table class="data-table matches-table">
+            <caption class="visually-hidden">Your mutual matches, newest first.</caption>
+            <thead>
+              <tr>
+                <th scope="col">Player</th>
+                <th scope="col">Matched</th>
+                <th scope="col">Status</th>
+                <th scope="col">Instagram</th>
+                <th scope="col"><span class="visually-hidden">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each matches as match (match.match_id)}
+                <tr class:new-match={!match.revealed}>
+                  <td>
+                    <a class="match-person" href={`/matches/${match.match_id}`}>
+                      {#if match.photo_urls.length}
+                        <img class="thumb" src={match.photo_urls[0]} alt="" />
+                      {:else}
+                        <span class="thumb placeholder" aria-hidden="true"></span>
+                      {/if}
+                      <span class="match-copy">
+                        <strong>{match.display_name}</strong>
+                        <span class="muted">Matched {relativeDate(match.matched_at)}</span>
+                      </span>
+                    </a>
+                  </td>
+                  <td>{relativeDate(match.matched_at)}</td>
+                  <td>
+                    {#if !match.revealed}
+                      <span class="chip optic">New match</span>
+                    {:else}
+                      <span class="chip success">Revealed</span>
+                    {/if}
+                  </td>
+                  <td>
+                    <span class="chip" class:info={match.has_instagram}>
+                      <i class="bi bi-instagram me-1" aria-hidden="true"></i>{match.has_instagram ? 'Instagram available' : 'No Instagram'}
+                    </span>
+                  </td>
+                  <td>
+                    <button
+                      class="icon-button dark"
+                      type="button"
+                      onclick={() => openSafety(match, 'report')}
+                      aria-label={`Safety options for ${match.display_name}`}
+                    >
+                      <i class="bi bi-flag" aria-hidden="true"></i>
+                    </button>
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    {/if}
   {/if}
 
   <SafetyDialog
@@ -104,64 +168,56 @@
 
 <style>
   .matches-page {
-    width: min(100% - 1.5rem, 42rem);
+    width: min(100% - 1.5rem, 46rem);
   }
 
-  .match-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: grid;
-    gap: 0.75rem;
+  .list-head {
+    align-items: center;
+    margin-bottom: 0.5rem;
   }
 
-  .match-row {
+  .matches-table {
+    min-width: 38rem;
+  }
+
+  .match-person {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    border: 1px solid var(--line);
-    border-left: 4px solid transparent;
-    border-radius: var(--radius);
-    background: var(--surface);
-    box-shadow: var(--shadow-small);
-    padding: 0.6rem;
-  }
-
-  .match-link {
-    display: flex;
-    flex: 1;
-    align-items: center;
-    gap: 1rem;
+    gap: 0.7rem;
     min-width: 0;
     color: var(--ink);
     text-decoration: none;
   }
 
+  .match-person:hover strong {
+    text-decoration: underline;
+    text-underline-offset: 0.18em;
+  }
+
   .thumb {
-    width: 5rem;
-    flex: 0 0 5rem;
-    border-radius: var(--radius-control);
+    width: 2.5rem;
+    height: 2.5rem;
+    flex: 0 0 2.5rem;
+    border-radius: var(--radius-chip);
+    object-fit: cover;
+    background: var(--media-bg);
   }
 
   .placeholder {
-    background: #e5eae7;
+    display: block;
+    background: var(--media-bg);
   }
 
   .match-copy {
     display: grid;
-    gap: 0.25rem;
     min-width: 0;
   }
 
   .match-copy strong {
-    font-size: 1.05rem;
+    font-size: 0.95rem;
   }
 
-  .match-copy .chip {
-    justify-self: start;
-  }
-
-  .match-row.new-match {
-    border-left-color: var(--ball);
+  .match-copy .muted {
+    font-size: 0.78rem;
   }
 </style>

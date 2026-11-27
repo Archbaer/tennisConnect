@@ -8,6 +8,7 @@
     weekdayLabel,
     type DiscoveryDetail
   } from '#lib/api';
+  import { playWindows, type PlayWindow } from '#lib/dashboard';
   import { noteMatchCreated } from '#lib/matchState';
   import { online } from '#lib/offline';
   import SafetyDialog from '#lib/SafetyDialog.svelte';
@@ -19,7 +20,12 @@
   let error = '';
   let acting = false;
   let confirmPass = false;
+  let windows: { totalHours: number; windows: PlayWindow[] } = { totalHours: 0, windows: [] };
   let safety: { openReport: () => Promise<void>; openBlock: () => Promise<void> };
+
+  const segments = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+  $: windows = detail ? playWindows(detail.player.availability) : { totalHours: 0, windows: [] };
 
   onMount(() => {
     const url = new URL(window.location.href);
@@ -95,31 +101,31 @@
   {#if loading}
     <p role="status">Loading player…</p>
   {:else if !detail}
-    <div class="surface stack">
+    <div class="sheet-card stack">
       <p class="alert-box mb-0" role="alert">{error}</p>
       <a class="btn btn-primary align-self-start" href="/discover">Back to Discover</a>
     </div>
   {:else}
-    <article class="player-card" aria-labelledby="detail-name">
-      <div class="photo-wrap">
-        <div class="photo-fallback" aria-hidden="true"><span>{initials(detail.player.display_name)}</span></div>
+    <article class="media-card" aria-labelledby="detail-name">
+      <div class="media-frame">
+        <div class="media-fallback" aria-hidden="true"><span>{initials(detail.player.display_name)}</span></div>
         {#if detail.player.photo_urls.length}
           <img
             src={detail.player.photo_urls[0]}
             alt={`${detail.player.display_name}'s photo`}
-            onerror={(event) => ((event.currentTarget as HTMLImageElement).style.display = 'none')}
+            onerror={(event) => ((event.currentTarget as HTMLImageElement).hidden = true)}
           />
         {/if}
-        <span class="chip photo-chip">{distanceLabel(detail.player.distance_miles)}</span>
+        <span class="chip media-chip">{distanceLabel(detail.player.distance_miles)}</span>
         <button class="icon-button card-safety" type="button" onclick={() => openSafety('report')} aria-label={`Safety options for ${detail.player.display_name}`}>
           <i class="bi bi-flag" aria-hidden="true"></i>
         </button>
       </div>
 
-      <div class="card-body">
+      <div class="media-body">
         <div class="name-row">
           <h1 id="detail-name" class="mb-0">{detail.player.display_name}, {detail.player.age}</h1>
-          <span class="chip">{detail.player.skill_level}</span>
+          <span class="chip level">{detail.player.skill_level}</span>
         </div>
 
         <div class="week-strip" aria-hidden="true">
@@ -130,13 +136,49 @@
 
         {#if detail.player.bio}<p class="bio">{detail.player.bio}</p>{/if}
 
+        <section class="kpi-strip three" aria-label="Player stats">
+          <article class="kpi">
+            <h2 class="kpi-label">Level</h2>
+            <p class="kpi-value small level">{detail.player.skill_level}</p>
+            <p class="kpi-delta">Self-declared</p>
+          </article>
+          <article class="kpi">
+            <h2 class="kpi-label">Distance</h2>
+            <p class="kpi-value small">{distanceLabel(detail.player.distance_miles)}</p>
+            <p class="kpi-delta">Coarse bucket</p>
+          </article>
+          <article class="kpi">
+            <h2 class="kpi-label">Weekly play</h2>
+            <p class="kpi-value">{windows.totalHours}<span class="kpi-unit">h</span></p>
+            <p class="kpi-delta">{detail.player.availability.length} windows</p>
+          </article>
+        </section>
+
         <section class="stack gap-2" aria-labelledby="detail-times">
           <h2 id="detail-times" class="mb-0">Play times</h2>
-          <ul class="times">
+          <ul class="plain-list times">
             {#each detail.player.availability as slot}
               <li>{weekdayLabel(slot.weekday)} {slot.start}–{slot.end}</li>
             {/each}
           </ul>
+
+          {#if windows.windows.length}
+            <ul class="progress-list">
+              {#each windows.windows as slot}
+                <li>
+                  <div class="progress-row">
+                    <span>{slot.label}</span>
+                    <span class="progress-value">{slot.hours}h</span>
+                  </div>
+                  <div class="segmented" role="img" aria-label={`${slot.label}: ${slot.hours} hours`}>
+                    {#each segments as segment}
+                      <span class="segment" class:on={segment < Math.round(slot.percent / 10)}></span>
+                    {/each}
+                  </div>
+                </li>
+              {/each}
+            </ul>
+          {/if}
         </section>
 
         {#if error}
@@ -188,129 +230,16 @@
     text-decoration: none;
   }
 
-  .player-card {
-    overflow: hidden;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    background: var(--surface);
-    box-shadow: var(--shadow);
-  }
-
-  .photo-wrap {
-    position: relative;
-    aspect-ratio: 4 / 3;
-    max-height: 20rem;
-    overflow: hidden;
-    background: #dfe9df;
-  }
-
-  .photo-wrap img {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  .photo-fallback {
-    position: absolute;
-    inset: 0;
-    display: grid;
-    place-items: center;
-    background:
-      linear-gradient(135deg, rgb(216 255 62 / 18%), transparent 55%),
-      linear-gradient(160deg, var(--court-light), var(--court-deep));
-    color: var(--ball);
-    font-size: clamp(4rem, 18vw, 7rem);
-    font-weight: 800;
-  }
-
-  .photo-fallback::before {
-    content: '';
-    position: absolute;
-    inset: 8%;
-    border: 2px solid rgb(247 249 244 / 32%);
-    border-radius: 50%;
-    transform: rotate(-12deg);
-  }
-
-  .photo-chip {
-    position: absolute;
-    left: 0.75rem;
-    top: 0.75rem;
-    background: rgb(255 255 255 / 92%);
-  }
-
-  .card-safety {
-    position: absolute;
-    right: 0.75rem;
-    top: 0.75rem;
-  }
-
-  .card-body {
-    display: grid;
-    gap: 0.75rem;
-    padding: 1rem;
-  }
-
-  .name-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-  }
-
-  .name-row h1 {
-    font-size: clamp(1.6rem, 6vw, 2rem);
-  }
-
-  .week-strip {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 0.3rem;
-  }
-
-  .week-strip span {
-    display: grid;
-    place-items: center;
-    min-height: 1.75rem;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-chip);
-    color: var(--muted);
-    font-size: 0.72rem;
-    font-weight: 700;
-  }
-
-  .week-strip span.active {
-    border-color: var(--court);
-    background: var(--court);
-    color: white;
-  }
-
-  .bio {
-    white-space: pre-wrap;
+  .level {
+    text-transform: capitalize;
   }
 
   .times {
-    margin: 0;
-    padding-left: 1.2rem;
+    margin-bottom: 0;
   }
 
-  .card-actions {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.6rem;
-  }
-
-  .card-actions .btn {
-    min-height: 2.8rem;
-  }
-
-  .confirm-pass {
-    padding: 0.75rem;
-    border: 1px solid #e6c4bf;
-    border-radius: var(--radius-control);
-    background: #fbefeb;
+  .media-body h1 {
+    font-size: clamp(1.6rem, 6vw, 2rem);
   }
 
   @media (max-width: 360px) {
