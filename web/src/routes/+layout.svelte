@@ -223,8 +223,12 @@
     </footer>
   </div>
 
-  {#if signedIn && !isMatchReveal(page.url.pathname)}
-    <nav class="tab-bar" aria-label="Primary mobile" data-active={activeTab}>
+  <Toaster />
+</div>
+
+<!-- Direct child of the non-transformed app body: no ancestor can capture its fixed positioning. -->
+{#if signedIn && !isMatchReveal(page.url.pathname)}
+  <nav class="tab-bar" aria-label="Primary mobile" data-active={activeTab}>
       <span class="tab-indicator" aria-hidden="true">
         {#key page.url.pathname}
           <span class="tab-indicator-bar"></span>
@@ -250,11 +254,8 @@
         <i class="bi bi-sliders" aria-hidden="true"></i>
         <span>Settings</span>
       </a>
-    </nav>
-  {/if}
-
-  <Toaster />
-</div>
+  </nav>
+{/if}
 
 <style>
   .signed-in {
@@ -469,13 +470,8 @@
   }
 
   .net-line {
-    height: 4px;
-    background-image: repeating-linear-gradient(
-      to right,
-      var(--court) 0 13px,
-      transparent 13px 20px
-    );
-    opacity: 0.55;
+    height: 1px;
+    background: var(--line);
   }
 
   .site-footer {
@@ -543,15 +539,11 @@
 
   @media (max-width: 767px) {
     .with-tabs {
-      --sticky-offset: calc(4.4rem + env(safe-area-inset-bottom));
+      --sticky-offset: calc(var(--tab-bar-height) + var(--tab-bar-safe));
     }
 
     .with-tabs .site-footer {
       display: none;
-    }
-
-    .with-tabs main {
-      padding-bottom: calc(4.4rem + env(safe-area-inset-bottom));
     }
 
     .tab-bar {
@@ -562,7 +554,7 @@
       z-index: 30;
       display: grid;
       grid-template-columns: repeat(5, minmax(0, 1fr));
-      padding-bottom: env(safe-area-inset-bottom);
+      padding-bottom: var(--tab-bar-safe);
       border-top: 1px solid var(--line);
       background: var(--tab-bg);
       backdrop-filter: blur(14px) saturate(1.2);
@@ -636,7 +628,7 @@
       justify-items: center;
       align-content: center;
       gap: 0.15rem;
-      min-height: 4.4rem;
+      min-height: var(--tab-bar-height);
       padding: 0.3rem 0.2rem;
       color: var(--muted);
       font-size: 0.7rem;
