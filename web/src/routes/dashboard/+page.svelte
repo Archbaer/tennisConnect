@@ -600,5 +600,59 @@
     .dashboard-meta .btn {
       width: 100%;
     }
+
+    .dashboard-table td[data-label='ID'] {
+      display: none;
+    }
+
+    .dashboard-table td[data-label='Opponent'] {
+      order: 1;
+      flex: 1 1 6rem;
+      font-weight: 700;
+    }
+
+    .dashboard-table td[data-label='Result'] {
+      order: 2;
+      margin-left: auto;
+    }
+
+    .dashboard-table tbody tr::after {
+      content: '';
+      order: 3;
+      flex-basis: 100%;
+      height: 0;
+    }
+
+    .dashboard-table td[data-label='Score'] {
+      order: 4;
+    }
+
+    .dashboard-table td[data-label='Venue'] {
+      order: 5;
+    }
+
+    .dashboard-table td[data-label='Updated'] {
+      order: 6;
+    }
+
+    .dashboard-table td[data-label='Score'],
+    .dashboard-table td[data-label='Venue'],
+    .dashboard-table td[data-label='Updated'] {
+      color: var(--muted);
+      font-size: 0.8rem;
+      line-height: 1.3;
+    }
+
+    .dashboard-table td[data-label='Score']::after,
+    .dashboard-table td[data-label='Venue']::after {
+      content: '·';
+      margin-left: 0.35rem;
+    }
+
+    .dashboard-table .chip {
+      min-height: 1.5rem;
+      padding: 0.1rem 0.5rem;
+      font-size: 0.68rem;
+    }
   }
 </style>
