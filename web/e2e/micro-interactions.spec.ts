@@ -120,11 +120,25 @@ test('@mobile match row swipe opens the match and keeps button and keyboard fall
   await pointer('pointerup', box!.x + 204, box!.y + 140);
   await expect(page).toHaveURL(/\/matches$/);
 
-  // Past the threshold the row opens the match.
+  // Mid-swipe the cue is revealed only in the gap left by the clipped content.
   await pointer('pointerdown', box!.x + 300, box!.y + 30);
-  await pointer('pointermove', box!.x + 260, box!.y + 30);
+  await pointer('pointermove', box!.x + 245, box!.y + 30);
   await expect(row).toHaveClass(/is-revealed/);
-  await expect(row.locator('.swipe-cue-label')).toHaveCSS('opacity', '1');
+
+  const rowBox = await row.boundingBox();
+  const cueBox = await row.locator('.swipe-cue').boundingBox();
+  const contentBox = await row.locator('.match-actions').boundingBox();
+  expect(rowBox).not.toBeNull();
+  expect(cueBox).not.toBeNull();
+  expect(contentBox).not.toBeNull();
+  expect(cueBox!.width).toBeGreaterThan(40);
+  expect(cueBox!.x).toBeGreaterThanOrEqual(contentBox!.x + contentBox!.width - 0.5);
+  expect(cueBox!.x + cueBox!.width).toBeLessThanOrEqual(rowBox!.x + rowBox!.width + 1);
+  expect(await row.evaluate((element) => getComputedStyle(element).overflow)).toBe('hidden');
+  expect(
+    await row.locator('.swipe-cue-label').evaluate((element) => Number(getComputedStyle(element).opacity))
+  ).toBeGreaterThan(0);
+
   await pointer('pointermove', box!.x + 140, box!.y + 30);
   await expect(row).toHaveClass(/is-armed/);
   await pointer('pointerup', box!.x + 140, box!.y + 30);
