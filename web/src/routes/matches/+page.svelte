@@ -108,7 +108,7 @@
             <tbody>
               {#each matches as match (match.match_id)}
                 <tr class:new-match={!match.revealed}>
-                  <td>
+                  <td data-label="Player">
                     <a class="match-person" href={`/matches/${match.match_id}`}>
                       {#if match.photo_urls.length}
                         <img class="thumb" src={match.photo_urls[0]} alt="" />
@@ -121,20 +121,20 @@
                       </span>
                     </a>
                   </td>
-                  <td>{relativeDate(match.matched_at)}</td>
-                  <td>
+                  <td data-label="Matched">{relativeDate(match.matched_at)}</td>
+                  <td data-label="Status">
                     {#if !match.revealed}
                       <span class="chip optic">New match</span>
                     {:else}
                       <span class="chip success">Revealed</span>
                     {/if}
                   </td>
-                  <td>
+                  <td data-label="Instagram">
                     <span class="chip" class:info={match.has_instagram}>
                       <i class="bi bi-instagram me-1" aria-hidden="true"></i>{match.has_instagram ? 'Instagram available' : 'No Instagram'}
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Actions">
                     <button
                       class="icon-button dark"
                       type="button"
@@ -168,7 +168,7 @@
 
 <style>
   .matches-page {
-    width: min(100% - 1.5rem, 46rem);
+    width: min(100% - (2 * var(--space-page-x)), 46rem);
   }
 
   .list-head {
@@ -176,8 +176,16 @@
     margin-bottom: 0.5rem;
   }
 
-  .matches-table {
-    min-width: 38rem;
+  @media (min-width: 768px) {
+    .matches-table {
+      min-width: 38rem;
+    }
+  }
+
+  @media (min-width: 992px) {
+    .matches-page {
+      width: min(100% - 2rem, 64rem);
+    }
   }
 
   .match-person {

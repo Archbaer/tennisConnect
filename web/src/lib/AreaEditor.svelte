@@ -93,8 +93,10 @@
       Postcode or area
       <input class="form-control" required bind:value={area} placeholder="SW11 4NJ or Battersea" />
     </label>
-    <button class="btn btn-primary" type="submit" disabled={saving || !$online}>
-      {saving ? 'Saving…' : 'Save area'}
-    </button>
+    <div class="sticky-actions save-bar">
+      <button class="btn btn-primary" type="submit" disabled={saving || !$online}>
+        {saving ? 'Saving…' : 'Save area'}
+      </button>
+    </div>
   </form>
 </div>

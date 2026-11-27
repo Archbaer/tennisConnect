@@ -72,7 +72,7 @@
     display: grid;
     place-items: center;
     min-height: calc(100dvh - 4.5rem);
-    padding: 1rem;
+    padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom));
     background: var(--court-deep);
   }
 

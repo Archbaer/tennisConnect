@@ -187,7 +187,7 @@
         {/if}
 
         {#if confirmPass}
-          <div class="confirm-pass">
+          <div class="confirm-pass sticky-actions">
             <p class="small mb-2">You won't see each other again.</p>
             <div class="d-flex gap-2">
               <button class="btn btn-danger flex-grow-1" onclick={() => react('pass')} disabled={acting || !$online}>Not for me</button>
@@ -195,7 +195,7 @@
             </div>
           </div>
         {:else}
-          <div class="card-actions">
+          <div class="card-actions sticky-actions">
             <button class="btn btn-primary" onclick={() => react('like')} disabled={acting || !$online}>
               {acting ? 'Sending…' : "I'd play"}
             </button>
@@ -219,8 +219,8 @@
 
 <style>
   .detail-page {
-    width: min(100% - 1.5rem, 30rem);
-    padding-block: 1rem 1.5rem;
+    width: min(100% - (2 * var(--space-page-x)), 30rem);
+    padding-block: var(--space-page-top) var(--space-page-bottom);
   }
 
   .back {

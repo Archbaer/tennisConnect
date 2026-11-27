@@ -2,6 +2,7 @@
   import { goto } from '$app/navigation';
   import { apiJSON } from '#lib/api';
   import AreaSheet from '#lib/AreaSheet.svelte';
+  import Disclosure from '#lib/Disclosure.svelte';
   import MatchingSheet from '#lib/MatchingSheet.svelte';
 
   let areaSheet: { open: () => Promise<void> };
@@ -73,8 +74,7 @@
       </a>
     </section>
 
-    <section class="sheet-card settings-card" aria-labelledby="settings-safety-title">
-      <h2 id="settings-safety-title"><i class="bi bi-shield-check me-2" aria-hidden="true"></i>Privacy and safety</h2>
+    <Disclosure class="settings-disclosure" label="Privacy and safety" level={2} icon="bi-shield-check">
       <p class="muted">
         Your exact area, e-mail and date of birth are never returned by the API. Other players see a
         coarse area only through distance buckets. Instagram is disclosed only inside a live match.
@@ -82,7 +82,7 @@
       <p class="muted mb-0">
         To report or block someone, use the safety button on their Discover card or in your match.
       </p>
-    </section>
+    </Disclosure>
 
     <section class="sheet-card settings-card" aria-labelledby="settings-data-title">
       <h2 id="settings-data-title"><i class="bi bi-database me-2" aria-hidden="true"></i>Your data</h2>
@@ -120,18 +120,26 @@
 
 <style>
   .settings-page {
-    width: min(100% - 1.5rem, 48rem);
+    width: min(100% - (2 * var(--space-page-x)), 48rem);
   }
 
   .settings-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
     align-items: start;
-    gap: 1rem;
+    gap: var(--space-stack);
   }
 
   .settings-card {
-    padding: 1rem 1.1rem;
+    padding: calc(var(--space-card) * 0.9) var(--space-card);
+  }
+
+  :global(.settings-disclosure) {
+    font-size: 0.86rem;
+  }
+
+  :global(.settings-disclosure .disclosure-title) {
+    font-size: 1.05rem;
   }
 
   .settings-card h2 {
@@ -139,17 +147,13 @@
     font-size: 1.1rem;
   }
 
-  .settings-card .muted {
-    font-size: 0.86rem;
-  }
-
   .settings-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
     width: 100%;
-    min-height: 2.8rem;
-    padding: 0.65rem 0.45rem;
+    min-height: var(--tap);
+    padding: 0.55rem 0.35rem;
     border: 0;
     border-top: 1px solid var(--line);
     border-radius: 10px;
@@ -181,9 +185,10 @@
     font-size: 0.86rem;
   }
 
-  @media (max-width: 720px) {
+  @media (min-width: 768px) {
     .settings-grid {
-      grid-template-columns: minmax(0, 1fr);
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1rem;
     }
   }
 </style>

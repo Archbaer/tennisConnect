@@ -341,18 +341,18 @@
           <tbody>
             {#each filtered as match (match.matchId)}
               <tr>
-                <td><span class="mono">{match.id}</span></td>
-                <td>{match.opponent}</td>
-                <td>{match.score}</td>
-                <td>{match.venue}</td>
-                <td>
+                <td data-label="ID"><span class="mono">{match.id}</span></td>
+                <td data-label="Opponent">{match.opponent}</td>
+                <td data-label="Score">{match.score}</td>
+                <td data-label="Venue">{match.venue}</td>
+                <td data-label="Result">
                   <span class="chip" class:success={match.result === 'W'} class:danger={match.result === 'L'}>
                     <i class="bi" class:bi-trophy={match.result === 'W'} class:bi-dash-circle={match.result === 'L'} aria-hidden="true"></i>
                     {match.result === 'W' ? 'Win' : 'Loss'}
                   </span>
                 </td>
-                <td>{formatDate(match.playedAt)}</td>
-                <td>
+                <td data-label="Updated">{formatDate(match.playedAt)}</td>
+                <td data-label="Actions">
                   <a class="row-action" href={`/matches/${match.matchId}`} aria-label={`Actions for ${match.opponent}`}>
                     <i class="bi bi-three-dots" aria-hidden="true"></i>
                   </a>
@@ -399,8 +399,8 @@
 
   .dash-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
-    gap: 1rem;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-stack);
     align-items: stretch;
   }
 
@@ -560,10 +560,6 @@
     font-size: 0.78rem;
   }
 
-  .dashboard-table {
-    min-width: 46rem;
-  }
-
   .table-head {
     align-items: flex-start;
   }
@@ -575,9 +571,16 @@
     gap: 0.5rem;
   }
 
-  @media (max-width: 900px) {
+  @media (min-width: 768px) {
+    .dashboard-table {
+      min-width: 46rem;
+    }
+  }
+
+  @media (min-width: 992px) {
     .dash-grid {
-      grid-template-columns: minmax(0, 1fr);
+      grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+      gap: 1rem;
     }
   }
 
@@ -592,6 +595,10 @@
 
     .table-controls .control-search {
       flex: 1 1 10rem;
+    }
+
+    .dashboard-meta .btn {
+      width: 100%;
     }
   }
 </style>

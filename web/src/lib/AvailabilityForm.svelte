@@ -106,9 +106,11 @@
     <small class="muted">You need at least one play time. This one cannot be removed.</small>
   {/if}
   {#if error}<p class="alert-box mb-0" role="alert">{error}</p>{/if}
-  <button class="btn btn-primary align-self-start" type="submit" disabled={saving || !$online}>
-    {saving ? 'Saving…' : 'Save play times'}
-  </button>
+  <div class="sticky-actions save-bar">
+    <button class="btn btn-primary" type="submit" disabled={saving || !$online}>
+      {saving ? 'Saving…' : 'Save play times'}
+    </button>
+  </div>
 </form>
 
 <style>
