@@ -14,9 +14,12 @@
 
   const protectedPrefixes = ['/dashboard', '/discover', '/matches', '/profile', '/onboarding', '/settings', '/account'];
 
+  const tabRoutes = ['/dashboard', '/discover', '/matches', '/profile', '/settings'];
+
   let signedIn = $derived($session === 'signed-in');
   let pageTitle = $derived(titleFor(page.url.pathname));
   let sectionTitle = $derived(sectionFor(page.url.pathname));
+  let activeTab = $derived(tabRoutes.findIndex((route) => isActive(route)));
 
   function needsAccount(path: string): boolean {
     if (path === '/account/recovery') return false;
@@ -220,7 +223,12 @@
   </div>
 
   {#if signedIn && !isMatchReveal(page.url.pathname)}
-    <nav class="tab-bar" aria-label="Primary mobile">
+    <nav class="tab-bar" aria-label="Primary mobile" data-active={activeTab}>
+      <span class="tab-indicator" aria-hidden="true">
+        {#key page.url.pathname}
+          <span class="tab-indicator-bar"></span>
+        {/key}
+      </span>
       <a href="/dashboard" class:active={isActive('/dashboard')} aria-current={isActive('/dashboard') ? 'page' : undefined}>
         <i class="bi bi-grid-1x2" aria-hidden="true"></i>
         <span>Dashboard</span>
@@ -559,6 +567,67 @@
       box-shadow: 0 -8px 24px rgb(6 40 31 / 6%);
     }
 
+    .tab-bar[data-active='0'] {
+      --tab-index: 0;
+    }
+
+    .tab-bar[data-active='1'] {
+      --tab-index: 1;
+    }
+
+    .tab-bar[data-active='2'] {
+      --tab-index: 2;
+    }
+
+    .tab-bar[data-active='3'] {
+      --tab-index: 3;
+    }
+
+    .tab-bar[data-active='4'] {
+      --tab-index: 4;
+    }
+
+    .tab-indicator {
+      position: absolute;
+      top: -1px;
+      left: 0;
+      width: 20%;
+      height: 3px;
+      transform: translateX(calc(var(--tab-index, 0) * 100%));
+      transition: transform 280ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 160ms ease;
+      pointer-events: none;
+    }
+
+    .tab-bar[data-active='-1'] .tab-indicator {
+      opacity: 0;
+    }
+
+    .tab-indicator-bar {
+      position: relative;
+      display: block;
+      height: 100%;
+      margin-inline: 0.9rem;
+      overflow: hidden;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--court-light), var(--ball) 55%, var(--sky));
+      box-shadow: 0 0 10px var(--ball-glow), 0 0 22px var(--focus-glow);
+    }
+
+    .tab-indicator-bar::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(100deg, transparent 12%, rgb(255 255 255 / 88%) 50%, transparent 88%);
+      transform: translateX(-130%);
+      animation: tab-sweep 620ms ease-out both;
+    }
+
+    @keyframes tab-sweep {
+      to {
+        transform: translateX(130%);
+      }
+    }
+
     .tab-bar a {
       display: grid;
       justify-items: center;
@@ -600,6 +669,14 @@
     .app-sidebar,
     .tab-bar {
       background: var(--surface);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tab-indicator,
+    .tab-indicator-bar::after {
+      animation: none !important;
+      transition: none !important;
     }
   }
 </style>
