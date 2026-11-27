@@ -286,7 +286,7 @@
     }
 
     .matches-table tbody tr.new-match::before {
-      background: linear-gradient(150deg, rgb(216 255 62 / 14%), var(--surface) 62%);
+      background: linear-gradient(150deg, var(--row-tint), var(--surface) 62%);
     }
 
     .matches-table tbody td:not(.swipe-cue) {
@@ -355,17 +355,13 @@
     }
 
     .matches-table tbody tr:global(.is-armed) .swipe-cue-label {
-      background: linear-gradient(180deg, #efff9e, var(--ball));
-      color: #0a1714;
+      background: var(--ball-face);
+      color: var(--ball-ink);
       box-shadow: 0 0 16px var(--ball-glow);
     }
 
     :global(html[data-bs-theme='dark']) .matches-table tbody tr::before {
       background: linear-gradient(180deg, var(--surface-top), var(--surface) 78%);
-    }
-
-    :global(html[data-bs-theme='dark']) .matches-table tbody tr.new-match::before {
-      background: linear-gradient(150deg, rgb(216 255 62 / 7%), var(--surface) 62%);
     }
 
     .matches-table td[data-label='Player'] {

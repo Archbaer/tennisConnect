@@ -317,7 +317,7 @@
     width: 4rem;
     height: 4rem;
     border-radius: 50%;
-    background: radial-gradient(circle at 35% 30%, #f0ff9b, var(--ball) 55%, var(--ball-deep));
+    background: var(--ball-shading);
   }
 
   @media (max-width: 430px) {
