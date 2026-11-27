@@ -144,7 +144,11 @@
               <h3>{report.display_name}</h3>
               <span class:alert={report.overdue} class="chip">{report.overdue ? 'Overdue' : 'Open'}</span>
             </div>
-            <p class="score">{report.category} · submitted {formatDate(report.created_at)} · due {formatDate(report.review_due_at)}</p>
+            <p class="score dotlist">
+              <span>{report.category}</span>
+              <span>submitted {formatDate(report.created_at)}</span>
+              <span>due {formatDate(report.review_due_at)}</span>
+            </p>
             {#if report.details}<p>{report.details}</p>{/if}
             <div class="row">
               <button class="btn btn-outline-secondary" onclick={() => decide(report.report_id, 'dismiss')}>Dismiss</button>

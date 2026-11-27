@@ -2,6 +2,7 @@
   import { onMount, tick } from 'svelte';
   import { goto } from '$app/navigation';
   import { apiJSON, relativeDate, type Match } from '#lib/api';
+  import Avatar from '#lib/Avatar.svelte';
   import LoadingSkeleton from '#lib/LoadingSkeleton.svelte';
   import { setMatches } from '#lib/matchState';
   import SafetyDialog from '#lib/SafetyDialog.svelte';
@@ -120,11 +121,7 @@
                   </td>
                   <td data-label="Player">
                     <a class="match-person" href={`/matches/${match.match_id}`}>
-                      {#if match.photo_urls.length}
-                        <img class="thumb" src={match.photo_urls[0]} alt="" />
-                      {:else}
-                        <span class="thumb placeholder" aria-hidden="true"></span>
-                      {/if}
+                      <Avatar name={match.display_name} src={match.photo_urls[0] ?? ''} decorative />
                       <span class="match-copy">
                         <strong>{match.display_name}</strong>
                       </span>
@@ -231,22 +228,6 @@
   .match-person:hover strong {
     text-decoration: underline;
     text-underline-offset: 0.18em;
-  }
-
-  .thumb {
-    width: 2.75rem;
-    height: 2.75rem;
-    flex: 0 0 2.75rem;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-chip);
-    object-fit: cover;
-    background: var(--media-bg);
-    box-shadow: inset 0 1px 0 var(--highlight), var(--tc-shadow-1);
-  }
-
-  .placeholder {
-    display: block;
-    background: var(--media-bg);
   }
 
   .match-copy {
@@ -396,9 +377,10 @@
       line-height: 1.3;
     }
 
-    .matches-table td[data-label='Matched']::after {
+    .matches-table td[data-label='Instagram']::before {
       content: '·';
-      margin-left: 0.35rem;
+      margin-right: 0.35rem;
+      color: var(--muted);
     }
 
     .matches-table .chip {

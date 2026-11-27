@@ -80,7 +80,9 @@ const textPairs = [
   ['info badge', 'info-ink', 'info-surface'],
   ['warning badge', 'clay-ink', 'clay-bg'],
   ['danger button label', 'on-danger', 'danger-fill'],
-  ['footer text', 'on-court', 'court-deep']
+  ['footer text', 'on-court', 'court-deep'],
+  ['avatar initials on court', 'ball', 'court-deep'],
+  ['avatar initials on clay', 'on-danger', 'clay-deep']
 ] as const;
 
 const interfacePairs = [

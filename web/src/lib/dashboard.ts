@@ -11,6 +11,7 @@ export type DashboardMatch = {
   result: MatchResult;
   playedAt: string;
   hours: number;
+  photoUrl?: string;
 };
 
 export type KpiDirection = 'up' | 'down' | 'flat';
@@ -101,7 +102,8 @@ export function buildDashboardMatches(matches: Match[]): DashboardMatch[] {
         venue: deriveVenue(match.match_id),
         result,
         playedAt: match.matched_at,
-        hours: deriveHours(match.match_id)
+        hours: deriveHours(match.match_id),
+        photoUrl: match.photo_urls[0]
       };
     })
     .sort((first, second) => new Date(second.playedAt).getTime() - new Date(first.playedAt).getTime());

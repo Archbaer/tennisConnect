@@ -153,9 +153,10 @@
               <h2 class="mb-0">{profile.display_name}{profile.age ? `, ${profile.age}` : ''}</h2>
               <span class="chip level">{profile.skill_level}</span>
             </div>
-            <p class="muted mb-0">
-              {profile.gender === 'woman' ? 'Woman' : 'Man'} · interested in {profile.gender_preference} ·
-              ages {profile.min_age}–{profile.max_age}
+            <p class="muted mb-0 dotlist">
+              <span>{profile.gender === 'woman' ? 'Woman' : 'Man'}</span>
+              <span>interested in {profile.gender_preference}</span>
+              <span>ages {profile.min_age}–{profile.max_age}</span>
             </p>
             {#if profile.bio}<p class="mb-0">{profile.bio}</p>{/if}
             <div class="page-actions">
