@@ -1449,7 +1449,7 @@ progress.progress-track::-moz-progress-bar {
     flex-wrap: wrap;
     align-items: center;
     gap: 0.1rem 0.35rem;
-    padding: 0.55rem 3.1rem 0.55rem 0.7rem;
+    padding: 0.55rem 4rem 0.55rem 0.7rem;
     border: 1px solid var(--line);
     border-radius: var(--radius-control);
     background: linear-gradient(180deg, var(--surface-top), var(--surface) 78%);
@@ -1495,7 +1495,7 @@ progress.progress-track::-moz-progress-bar {
   .data-table td:last-child {
     position: absolute;
     top: 50%;
-    right: 0.35rem;
+    right: 0.65rem;
     margin: 0;
     padding: 0;
     border: 0;
