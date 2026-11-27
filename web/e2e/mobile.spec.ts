@@ -35,7 +35,7 @@ const matches = [
     match_id: '22222222-2222-4222-8222-222222222222',
     player_id: player.player_id,
     display_name: 'Priya',
-    matched_at: new Date().toISOString(),
+    matched_at: new Date(Date.now() - 54 * 60_000).toISOString(),
     has_instagram: false,
     revealed: true,
     photo_urls: []
@@ -146,6 +146,20 @@ test('@mobile tables reflow into labelled stacked cards', async ({ page }) => {
 
   await page.goto('/matches');
   await expect(page.getByRole('heading', { name: 'Matches', level: 1 })).toBeVisible();
+
+  const firstMatch = page.locator('.matches-table tbody tr').first();
+  await expect(firstMatch.locator('td[data-label="Matched"]')).toHaveText('Matched 54 minutes ago');
+  const cardBox = await firstMatch.boundingBox();
+  const flagBox = await firstMatch
+    .getByRole('button', { name: 'Safety options for Priya' })
+    .boundingBox();
+  const statusBox = await firstMatch.locator('td[data-label="Status"]').boundingBox();
+  expect(cardBox).not.toBeNull();
+  expect(flagBox).not.toBeNull();
+  expect(statusBox).not.toBeNull();
+  expect(flagBox!.x + flagBox!.width).toBeLessThanOrEqual(cardBox!.x + cardBox!.width - 4);
+  expect(statusBox!.x + statusBox!.width).toBeLessThanOrEqual(flagBox!.x);
+
   const matchRow = await page.locator('.matches-table').evaluate((table) => {
     const row = table.querySelector('tbody tr');
     const cell = table.querySelector('tbody td[data-label="Player"]');
