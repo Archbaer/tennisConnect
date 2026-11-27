@@ -20,6 +20,10 @@ in the browser, no third-party assets, no client-side authorization.
 
 ## Tokens
 
+Current shipped values, including dark mode, are in
+[`palette.md`](./palette.md). The original light values are kept below for
+history.
+
 | Token | Value | Use |
 | --- | --- | --- |
 | `--court` | `#0b3b2e` | Primary actions, nav |
