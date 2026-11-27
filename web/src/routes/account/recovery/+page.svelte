@@ -60,13 +60,17 @@
   {#if loading}
     <p role="status">Checking your account…</p>
   {:else if recoverUntil}
-    <p class="score mb-1"><span class="tennis-ball me-2" aria-hidden="true"></span>Scheduled deletion</p>
-    <h1>Your account is scheduled for deletion</h1>
-    <p>
+    <header class="page-head">
+      <div>
+        <p class="kicker">Scheduled deletion</p>
+        <h1>Your account is scheduled for deletion</h1>
+      </div>
+    </header>
+    <p class="muted mb-0">
       It will be deleted on {formatDate(recoverUntil)}. Recovering restores your profile, photos,
       play times and matches. Nothing is visible to other players in the meantime.
     </p>
-    <div class="surface stack">
+    <div class="sheet-card stack">
       {#if error}<p class="alert-box mb-0" role="alert">{error}</p>{/if}
       <button class="btn btn-primary" type="button" onclick={recover} disabled={busy}>
         {busy ? 'Working…' : 'Recover my account'}
@@ -76,8 +80,12 @@
       </button>
     </div>
   {:else}
-    <p class="score mb-1"><span class="tennis-ball me-2" aria-hidden="true"></span>Account recovery</p>
-    <h1>This link cannot recover an account</h1>
+    <header class="page-head">
+      <div>
+        <p class="kicker">Account recovery</p>
+        <h1>This link cannot recover an account</h1>
+      </div>
+    </header>
     <p class="alert-box" role="alert">{error}</p>
     <a class="btn btn-primary align-self-start" href="/">Back to sign in</a>
   {/if}

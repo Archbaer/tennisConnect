@@ -52,22 +52,31 @@
   {#if loading}
     <p role="status">Checking your account…</p>
   {:else if !status}
-    <h1>No suspension</h1>
+    <header class="page-head">
+      <div>
+        <p class="kicker">Account</p>
+        <h1>No suspension</h1>
+      </div>
+    </header>
     <p class="alert-box" role="alert">{error}</p>
-    <a class="btn btn-primary" href="/">Back</a>
+    <a class="btn btn-primary align-self-start" href="/">Back</a>
   {:else}
-    <p class="score mb-1"><span class="tennis-ball me-2" aria-hidden="true"></span>Account suspended</p>
-    <h1>Your account is suspended</h1>
-    <p>
+    <header class="page-head">
+      <div>
+        <p class="kicker">Account suspended</p>
+        <h1>Your account is suspended</h1>
+      </div>
+    </header>
+    <p class="muted mb-0">
       A reviewer found a serious breach of the safety rules. You can send one appeal before
       {formatDate(status.deadline)}. The reviewer sees your appeal but not your e-mail, and you will
       not see who reported you.
     </p>
     {#if status.submitted}
-      <div class="surface stack">
+      <div class="sheet-card stack">
         <h2>Appeal submitted</h2>
         <p>Sent {status.submitted_at ? formatDate(status.submitted_at) : ''}. You cannot submit a second appeal.</p>
-        <p class="muted">{status.body}</p>
+        <p class="muted mb-0">{status.body}</p>
       </div>
     {:else if !status.open}
       <p class="alert-box" role="alert">The 14-day appeal window has closed.</p>
@@ -75,13 +84,13 @@
       {#if error}
         <p class="alert-box" role="alert">{error}</p>
       {/if}
-      <form class="surface stack" onsubmit={submit}>
+      <form class="sheet-card stack" onsubmit={submit}>
         <label>
           Why should the decision be reviewed?
           <textarea class="form-control" required maxlength="2000" bind:value={body}></textarea>
           <small>{body.length}/2000. Do not include your own or anyone else's contact details.</small>
         </label>
-        <button class="btn btn-primary" type="submit" disabled={submitting}>{submitting ? 'Sending…' : 'Send appeal'}</button>
+        <button class="btn btn-primary align-self-start" type="submit" disabled={submitting}>{submitting ? 'Sending…' : 'Send appeal'}</button>
       </form>
     {/if}
   {/if}
