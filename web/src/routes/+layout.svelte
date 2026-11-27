@@ -378,6 +378,7 @@
     position: sticky;
     top: 0;
     z-index: 20;
+    padding-top: env(safe-area-inset-top);
     background: var(--header-bg);
     backdrop-filter: blur(12px) saturate(1.2);
     -webkit-backdrop-filter: blur(12px) saturate(1.2);
@@ -388,8 +389,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 1rem;
-    padding-block: 0.7rem;
+    gap: 0.75rem;
+    padding-block: 0.4rem;
   }
 
   .topbar-copy {
@@ -408,14 +409,14 @@
 
   .topbar-title {
     margin: 0;
-    font-size: clamp(1.25rem, 2.4vw, 1.55rem);
+    font-size: 1.08rem;
     font-weight: 800;
     letter-spacing: -0.035em;
     line-height: 1.05;
   }
 
   h1.topbar-title {
-    font-size: clamp(1.6rem, 3vw, 2rem);
+    font-size: 1.22rem;
   }
 
   .header-actions {
@@ -427,8 +428,8 @@
 
   .theme-toggle {
     flex: 0 0 auto;
-    width: 2.4rem;
-    height: 2.4rem;
+    width: var(--tap);
+    height: var(--tap);
     min-height: 0;
     padding: 0;
     border: 1px solid var(--line);
@@ -471,8 +472,8 @@
     border-top: 1px solid var(--line);
     background: var(--court-deep);
     color: #dce8e2;
-    padding-block: 1.6rem;
-    font-size: 0.85rem;
+    padding-block: 1rem;
+    font-size: 0.82rem;
   }
 
   .site-footer .page {
@@ -515,13 +516,31 @@
     }
   }
 
+  @media (min-width: 768px) {
+    .header-inner {
+      padding-block: 0.7rem;
+    }
+
+    .topbar-title {
+      font-size: clamp(1.25rem, 2.4vw, 1.55rem);
+    }
+
+    h1.topbar-title {
+      font-size: clamp(1.6rem, 3vw, 2rem);
+    }
+  }
+
   @media (max-width: 767px) {
+    .with-tabs {
+      --sticky-offset: calc(4.4rem + env(safe-area-inset-bottom));
+    }
+
     .with-tabs .site-footer {
       display: none;
     }
 
     .with-tabs main {
-      padding-bottom: calc(4.75rem + env(safe-area-inset-bottom));
+      padding-bottom: calc(4.4rem + env(safe-area-inset-bottom));
     }
 
     .tab-bar {
@@ -545,21 +564,21 @@
       justify-items: center;
       align-content: center;
       gap: 0.15rem;
-      min-height: 4rem;
-      padding: 0.35rem 0.25rem;
+      min-height: 4.4rem;
+      padding: 0.3rem 0.2rem;
       color: var(--muted);
-      font-size: 0.72rem;
+      font-size: 0.7rem;
       font-weight: 700;
       text-decoration: none;
       transition: background 160ms ease, color 160ms ease;
     }
 
     .tab-bar a i {
-      font-size: 1.2rem;
+      font-size: 1.25rem;
     }
 
     .tab-bar a.active {
-      margin: 0.3rem 0.15rem;
+      margin: 0.25rem 0.12rem;
       border-radius: 14px;
       color: var(--court);
       background: linear-gradient(180deg, var(--surface-hover), var(--tab-active-bg));
