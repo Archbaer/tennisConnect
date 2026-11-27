@@ -261,7 +261,7 @@
     min-height: 1.35rem;
     padding: 0.05rem 0.4rem;
     font-size: 0.62rem;
-    box-shadow: 0 2px 8px rgb(0 0 0 / 12%), inset 0 1px 0 rgb(255 255 255 / 40%);
+    box-shadow: 0 2px 8px rgb(var(--rgb-shadow) / 12%), inset 0 1px 0 rgb(var(--rgb-white) / 40%);
   }
 
   .link-button {

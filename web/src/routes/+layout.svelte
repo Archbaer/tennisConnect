@@ -322,9 +322,9 @@
 
   .sidebar-nav a.active {
     background: linear-gradient(135deg, var(--nav-active-from), var(--nav-active-to) 72%);
-    color: white;
+    color: var(--on-court);
     transform: none;
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 22%), 0 8px 20px var(--nav-glow);
+    box-shadow: inset 0 1px 0 var(--highlight-soft), 0 8px 20px var(--nav-glow);
   }
 
   .sidebar-nav a.active::before {
@@ -352,12 +352,12 @@
     margin-left: auto;
     padding-inline: 0.3rem;
     border-radius: 999px;
-    background: linear-gradient(180deg, #efff9e, var(--ball));
-    color: #0a1714;
+    background: var(--ball-face);
+    color: var(--ball-ink);
     font-size: 0.68rem;
     font-weight: 800;
     box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 70%),
+      inset 0 1px 0 var(--highlight-strong),
       0 0 0 2px var(--surface),
       0 0 12px var(--ball-glow);
   }
@@ -452,7 +452,7 @@
 
   .theme-toggle:hover {
     background: var(--court);
-    color: white;
+    color: var(--on-court);
     transform: none;
     box-shadow: none;
   }
@@ -482,7 +482,7 @@
     margin-top: auto;
     border-top: 1px solid var(--line);
     background: var(--court-deep);
-    color: #dce8e2;
+    color: var(--on-court);
     padding-block: 1rem;
     font-size: 0.82rem;
   }
@@ -493,7 +493,7 @@
 
   .site-footer a,
   .site-footer .muted {
-    color: #dce8e2;
+    color: var(--on-court);
   }
 
   .offline-banner {
@@ -567,7 +567,7 @@
       background: var(--tab-bg);
       backdrop-filter: blur(14px) saturate(1.2);
       -webkit-backdrop-filter: blur(14px) saturate(1.2);
-      box-shadow: 0 -8px 24px rgb(6 40 31 / 6%);
+      box-shadow: var(--tab-shadow);
     }
 
     .tab-bar[data-active='0'] {
@@ -612,15 +612,15 @@
       margin-inline: 0.9rem;
       overflow: hidden;
       border-radius: 999px;
-      background: linear-gradient(90deg, var(--court-light), var(--ball) 55%, var(--sky));
-      box-shadow: 0 0 10px var(--ball-glow), 0 0 22px var(--focus-glow);
+      background: var(--tab-indicator);
+      box-shadow: inset 0 0 0 1px var(--court-light), 0 0 10px var(--ball-glow), 0 0 22px var(--focus-glow);
     }
 
     .tab-indicator-bar::after {
       content: '';
       position: absolute;
       inset: 0;
-      background: linear-gradient(100deg, transparent 12%, rgb(255 255 255 / 88%) 50%, transparent 88%);
+      background: linear-gradient(100deg, transparent 12%, var(--sheen) 50%, transparent 88%);
       transform: translateX(-130%);
       animation: tab-sweep 620ms ease-out both;
     }

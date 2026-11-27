@@ -116,6 +116,10 @@
           d="M12,98 C31,98 49,86 68,86 C87,86 105,102 124,102 C143,102 161,70 180,70 C199,70 217,78 236,78 C255,78 273,46 292,46 C311,46 329,58 348,58 C367,58 385,30 404,30 L408,30 L408,120 L12,120 Z"
         />
         <path
+          class="preview-line-halo"
+          d="M12,98 C31,98 49,86 68,86 C87,86 105,102 124,102 C143,102 161,70 180,70 C199,70 217,78 236,78 C255,78 273,46 292,46 C311,46 329,58 348,58 C367,58 385,30 404,30"
+        />
+        <path
           class="preview-line"
           stroke="url(#preview-line)"
           d="M12,98 C31,98 49,86 68,86 C87,86 105,102 124,102 C143,102 161,70 180,70 C199,70 217,78 236,78 C255,78 273,46 292,46 C311,46 329,58 348,58 C367,58 385,30 404,30"
@@ -328,6 +332,14 @@
     stop-color: var(--chart-line-end);
   }
 
+  .preview-line-halo {
+    fill: none;
+    stroke: var(--chart-line-halo);
+    stroke-width: 5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
   .preview-chart .preview-line {
     fill: none;
     stroke-width: 2.5;
@@ -384,7 +396,7 @@
 
   .preview-segments i.on {
     background: linear-gradient(90deg, var(--tracker-from), var(--tracker-to));
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 28%);
+    box-shadow: inset 0 1px 0 var(--highlight-soft);
   }
 
   .section-intro {
@@ -415,10 +427,10 @@
     width: 2.25rem;
     height: 2.25rem;
     border-radius: 50%;
-    background: linear-gradient(160deg, #efff9e, var(--ball));
-    color: var(--court-deep);
+    background: var(--ball-face);
+    color: var(--ball-ink);
     font-size: 1.05rem;
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 60%), 0 8px 18px var(--ball-glow);
+    box-shadow: inset 0 1px 0 var(--highlight-strong), 0 8px 18px var(--ball-glow);
   }
 
   .sign-in {

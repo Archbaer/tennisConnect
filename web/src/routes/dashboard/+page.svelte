@@ -213,6 +213,7 @@
               <text class="axis-label" x={chart.left - 6} y={tick.y + 3} text-anchor="end">{tick.label}</text>
             {/each}
             <path class="chart-area" d={chart.area} fill="url(#activity-fill)" />
+            <path class="chart-line-halo" d={chart.line} />
             <path class="chart-line" d={chart.line} stroke="url(#activity-line)" />
             {#each chart.points as point, index}
               <circle class="chart-dot" class:active={activeIndex === index} cx={point.x} cy={point.y} r={activeIndex === index ? 4.5 : 3} />
@@ -476,6 +477,14 @@
     stop-color: var(--chart-line-end);
   }
 
+  .chart-line-halo {
+    fill: none;
+    stroke: var(--chart-line-halo);
+    stroke-width: 5.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
   .chart-line {
     fill: none;
     stroke-width: 2.5;
@@ -512,7 +521,7 @@
 
   .chart-tip {
     pointer-events: none;
-    filter: drop-shadow(0 8px 18px rgb(6 40 31 / 18%));
+    filter: var(--tooltip-shadow);
   }
 
   .chart-tip-card {
