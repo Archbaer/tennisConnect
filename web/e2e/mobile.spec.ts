@@ -114,6 +114,113 @@ test('@mobile bottom tab bar has five thumb-friendly targets', async ({ page }) 
   }
 });
 
+test('@mobile fixed tab bar stays at the viewport bottom on a long matches list', async ({ page }) => {
+  const many = Array.from({ length: 24 }, (_, index) => ({
+    match_id: `match-${index}`,
+    player_id: `player-${index}`,
+    display_name: `Player ${index + 1}`,
+    matched_at: new Date(Date.now() - index * 3600000).toISOString(),
+    has_instagram: index % 2 === 0,
+    revealed: index % 2 === 0,
+    photo_urls: index === 0 ? ['data:image/png;base64,broken'] : []
+  }));
+
+  await page.route('**/api/v1/auth/session', (route) => route.fulfill({ status: 204, body: '' }));
+  await page.route('**/api/v1/matches', (route) => route.fulfill({ json: { matches: many } }));
+  await page.setViewportSize({ width: 390, height: 800 });
+  await page.goto('/matches');
+  await expect(page.getByRole('heading', { name: 'Matches', level: 1 })).toBeVisible();
+  await expect(page.locator('.matches-table tbody tr').first().locator('span.avatar')).toBeVisible();
+
+  const tabBar = page.getByRole('navigation', { name: 'Primary mobile' });
+  await expect(tabBar).toBeVisible();
+
+  const checkBar = async () => {
+    const metrics = await tabBar.evaluate((element) => {
+      const box = element.getBoundingClientRect();
+      return {
+        position: getComputedStyle(element).position,
+        bottom: box.bottom,
+        viewport: window.innerHeight
+      };
+    });
+    expect(metrics.position).toBe('fixed');
+    expect(Math.abs(metrics.bottom - metrics.viewport)).toBeLessThanOrEqual(1);
+  };
+
+  await checkBar();
+
+  await page.evaluate(() =>
+    window.scrollTo(0, Math.floor((document.documentElement.scrollHeight - window.innerHeight) / 2))
+  );
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+  await checkBar();
+
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 1
+      )
+    )
+    .toBe(true);
+  await checkBar();
+
+  const lastCard = await page.locator('.matches-table tbody tr').last().boundingBox();
+  const barBox = await tabBar.boundingBox();
+  expect(lastCard).not.toBeNull();
+  expect(barBox).not.toBeNull();
+  expect(lastCard!.y + lastCard!.height).toBeLessThanOrEqual(barBox!.y);
+
+  const unsafeAncestors = await tabBar.evaluate((element) => {
+    const problems: string[] = [];
+    for (let node = element.parentElement; node; node = node.parentElement) {
+      const style = getComputedStyle(node);
+      const webkitBackdrop = style.getPropertyValue('-webkit-backdrop-filter') || 'none';
+      if (
+        style.transform !== 'none' ||
+        style.filter !== 'none' ||
+        style.backdropFilter !== 'none' ||
+        webkitBackdrop !== 'none' ||
+        style.contain !== 'none' ||
+        style.willChange !== 'auto'
+      ) {
+        problems.push(`${node.tagName}:${style.transform}|${style.filter}|${style.backdropFilter}|${webkitBackdrop}|${style.contain}|${style.willChange}`);
+      }
+    }
+    return problems;
+  });
+  expect(unsafeAncestors).toEqual([]);
+});
+
+test('@mobile meta lines never end with a separator', async ({ page }) => {
+  await mockSignedIn(page);
+  await page.setViewportSize({ width: 390, height: 800 });
+
+  for (const path of ['/matches', '/dashboard', '/profile']) {
+    await page.goto(path);
+    await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
+
+    const problems = await page.evaluate(() => {
+      const nodes = Array.from(
+        document.querySelectorAll(
+          '.dotlist, .dotlist > *, .matches-table tbody td, .dashboard-table tbody td'
+        )
+      );
+      return nodes.flatMap((node) => {
+        const label = `${node.tagName}${node.getAttribute('data-label') ? `[${node.getAttribute('data-label')}]` : ''}`;
+        const text = (node.textContent ?? '').trim();
+        const after = getComputedStyle(node, '::after').content;
+        return [
+          after.includes('·') ? `${label}:after` : '',
+          text.endsWith('·') ? `${label}:text` : ''
+        ].filter(Boolean);
+      });
+    });
+    expect(problems, path).toEqual([]);
+  }
+});
+
 test('@mobile tables reflow into labelled stacked cards', async ({ page }) => {
   await mockSignedIn(page);
   await page.setViewportSize({ width: 390, height: 800 });
