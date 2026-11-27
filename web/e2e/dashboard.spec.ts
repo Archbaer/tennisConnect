@@ -128,10 +128,21 @@ test('dashboard has no serious accessibility violations', async ({ page }) => {
   expect(serious).toEqual([]);
 });
 
+test('dashboard has no serious accessibility violations in dark', async ({ page }) => {
+  await page.goto('/dashboard');
+  await page.getByRole('button', { name: 'Use dark theme' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-bs-theme', 'dark');
+  const results = await new AxeBuilder({ page }).analyze();
+  const serious = results.violations.filter(
+    (violation) => violation.impact === 'serious' || violation.impact === 'critical'
+  );
+  expect(serious).toEqual([]);
+});
+
 test('@mobile dashboard stacks without horizontal page overflow', async ({ page }) => {
   await page.goto('/dashboard');
   await expect(page.getByRole('heading', { name: 'Overview', level: 1 })).toBeVisible();
-  await expect(page.locator('.dash-sidebar')).toBeHidden();
+  await expect(page.locator('.app-sidebar')).toBeHidden();
   await expect(page.getByRole('table')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
 });
