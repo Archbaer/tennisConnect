@@ -63,7 +63,7 @@ test('new matches are marked in the list and tab', async ({ page }) => {
     route.fulfill({ json: { matches: [{ ...match, matched_at: new Date().toISOString() }] } })
   );
   await page.goto('/matches');
-  await expect(page.getByText('New match')).toBeVisible();
+  await expect(page.getByText('New match', { exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Matches, new match' }).first()).toBeVisible();
 });
 
@@ -150,6 +150,17 @@ test('landing page has no Content-Security-Policy violations', async ({ page }) 
 
 test('landing page has no serious accessibility violations', async ({ page }) => {
   await page.goto('/');
+  const results = await new AxeBuilder({ page }).analyze();
+  const serious = results.violations.filter(
+    (violation) => violation.impact === 'serious' || violation.impact === 'critical'
+  );
+  expect(serious).toEqual([]);
+});
+
+test('landing page has no serious accessibility violations in dark', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Use dark theme' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-bs-theme', 'dark');
   const results = await new AxeBuilder({ page }).analyze();
   const serious = results.violations.filter(
     (violation) => violation.impact === 'serious' || violation.impact === 'critical'
