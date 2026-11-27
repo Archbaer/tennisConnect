@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { apiJSON } from '#lib/api';
+  import Disclosure from '#lib/Disclosure.svelte';
   import { online } from '#lib/offline';
   import { loadSession } from '#lib/session';
 
@@ -144,21 +145,15 @@
     <h2 id="how-title">Quiet until it is mutual.</h2>
   </div>
   <div class="feature-grid">
-    <article class="sheet-card feature-card">
-      <i class="bi bi-shield-check feature-icon" aria-hidden="true"></i>
-      <h3>Photos checked first</h3>
+    <Disclosure class="feature-card" label="Photos checked first" icon="bi-shield-check">
       <p class="muted mb-0">Moderation runs before visibility. Rejected and pending photos are never public.</p>
-    </article>
-    <article class="sheet-card feature-card">
-      <i class="bi bi-hand-thumbs-up feature-icon" aria-hidden="true"></i>
-      <h3>Two yeses make a match</h3>
+    </Disclosure>
+    <Disclosure class="feature-card" label="Two yeses make a match" icon="bi-hand-thumbs-up">
       <p class="muted mb-0">A like is private. Instagram stays hidden until both people say yes.</p>
-    </article>
-    <article class="sheet-card feature-card">
-      <i class="bi bi-slash-circle feature-icon" aria-hidden="true"></i>
-      <h3>Exit any time</h3>
+    </Disclosure>
+    <Disclosure class="feature-card" label="Exit any time" icon="bi-slash-circle">
       <p class="muted mb-0">Report or block. A block closes the match and stops new photo and handle access.</p>
-    </article>
+    </Disclosure>
   </div>
 </section>
 
@@ -196,26 +191,26 @@
 
 <style>
   .hero {
-    padding-block: 3rem 4rem;
+    padding-block: 1.1rem 1.75rem;
     animation: fade-up 320ms ease both;
   }
 
   .hero-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+    grid-template-columns: minmax(0, 1fr);
     align-items: center;
-    gap: 3rem;
+    gap: 1.25rem;
   }
 
   .hero h1 {
-    font-size: clamp(2.6rem, 6vw, 4.4rem);
+    font-size: clamp(2rem, 10vw, 2.9rem);
     max-width: 12ch;
   }
 
   .lede {
     max-width: 34rem;
     color: var(--muted);
-    font-size: 1.12rem;
+    font-size: var(--type-lede);
   }
 
   .hero-actions {
@@ -229,7 +224,7 @@
   }
 
   .preview-shell {
-    display: grid;
+    display: none;
     gap: 0.75rem;
     padding: 1rem;
     border: 1px solid var(--line);
@@ -400,53 +395,62 @@
 
   .feature-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 1rem;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-stack);
   }
 
-  .feature-card {
-    display: grid;
-    align-content: start;
-    gap: 0.35rem;
+  :global(.feature-card .disclosure-title) {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    font-size: var(--type-h3);
   }
 
-  .feature-card h3 {
-    margin-bottom: 0.15rem;
-  }
-
-  .feature-icon {
+  :global(.feature-card .disclosure-title .bi) {
     display: inline-grid;
     place-items: center;
-    width: 2.6rem;
-    height: 2.6rem;
-    margin-bottom: 0.5rem;
+    flex: 0 0 auto;
+    width: 2.25rem;
+    height: 2.25rem;
     border-radius: 50%;
     background: linear-gradient(160deg, #efff9e, var(--ball));
     color: var(--court-deep);
-    font-size: 1.25rem;
+    font-size: 1.05rem;
     box-shadow: inset 0 1px 0 rgb(255 255 255 / 60%), 0 8px 18px var(--ball-glow);
   }
 
   .sign-in {
-    padding-bottom: 4rem;
+    padding-bottom: 1.5rem;
   }
 
-  @media (max-width: 991px) {
-    .hero-grid,
-    .feature-grid {
-      grid-template-columns: minmax(0, 1fr);
+  @media (min-width: 768px) {
+    .preview-shell {
+      display: grid;
+      max-width: 34rem;
+    }
+  }
+
+  @media (min-width: 992px) {
+    .hero {
+      padding-block: 2.5rem 3rem;
     }
 
     .hero-grid {
-      gap: 1.5rem;
+      grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+      gap: 2.5rem;
     }
 
-    .hero {
-      padding-block: 2rem 3rem;
+    .hero h1 {
+      font-size: clamp(3rem, 5vw, 4.4rem);
     }
 
-    .preview-shell {
-      max-width: 34rem;
+    .feature-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 1rem;
+    }
+
+    .sign-in {
+      padding-bottom: 3rem;
     }
   }
 

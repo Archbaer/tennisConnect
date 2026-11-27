@@ -3,6 +3,7 @@
   import { apiJSON, type Photo, type Profile, weekdayName } from '#lib/api';
   import { playWindows, type PlayWindow } from '#lib/dashboard';
   import AreaSheet from '#lib/AreaSheet.svelte';
+  import Disclosure from '#lib/Disclosure.svelte';
   import PreviewDialog from '#lib/PreviewDialog.svelte';
 
   let profile: Profile | null = null;
@@ -136,82 +137,82 @@
       </div>
     {/if}
 
-    <article class="media-card">
-      <div class="media-frame profile-photo">
-        <div class="media-fallback" aria-hidden="true">{initials(profile.display_name)}</div>
-        {#if mainPhotoUrl}
-          <img src={mainPhotoUrl} alt={`${profile.display_name}'s main photo`} onerror={(event) => ((event.currentTarget as HTMLImageElement).hidden = true)} />
-        {/if}
-        <span class="chip media-chip">{area || 'Area not set'}</span>
-      </div>
-      <div class="media-body">
-        <div class="name-row">
-          <h2 class="mb-0">{profile.display_name}{profile.age ? `, ${profile.age}` : ''}</h2>
-          <span class="chip level">{profile.skill_level}</span>
-        </div>
-        <p class="muted mb-0">
-          {profile.gender === 'woman' ? 'Woman' : 'Man'} · interested in {profile.gender_preference} ·
-          ages {profile.min_age}–{profile.max_age}
-        </p>
-        {#if profile.bio}<p class="mb-0">{profile.bio}</p>{/if}
-        <div class="page-actions">
-          <a class="btn btn-primary" href="/discover">Go to Discover</a>
-          <button class="btn btn-outline-secondary" type="button" onclick={() => areaSheet.open()}>Change area</button>
-        </div>
-      </div>
-    </article>
-
-    {#if photos.length}
-      <section class="sheet-card stack" aria-labelledby="profile-photos-title">
-        <div class="spread">
-          <h2 id="profile-photos-title" class="mb-0">Photos</h2>
-          <a href="/profile/photos">Manage</a>
-        </div>
-        <div class="photo-grid">
-          {#each photos as photo}
-            <div class="photo-slot">
-              <div class="photo-placeholder" aria-hidden="true"><i class="bi bi-image"></i></div>
-              {#if photoUrls[photo.photo_id]}
-                <img
-                  src={photoUrls[photo.photo_id]}
-                  alt={`Photo ${photo.display_order}`}
-                  onerror={(event) => ((event.currentTarget as HTMLImageElement).hidden = true)}
-                />
-              {/if}
-              <span class="photo-status chip" class:success={photo.status === 'approved'} class:danger={photo.status === 'rejected'}>{photo.status === 'approved' ? 'Approved' : photo.status === 'rejected' ? 'Not accepted' : 'Pending'}</span>
+    <div class="profile-columns">
+      <div class="profile-main stack">
+        <article class="media-card">
+          <div class="media-frame profile-photo">
+            <div class="media-fallback" aria-hidden="true">{initials(profile.display_name)}</div>
+            {#if mainPhotoUrl}
+              <img src={mainPhotoUrl} alt={`${profile.display_name}'s main photo`} onerror={(event) => ((event.currentTarget as HTMLImageElement).hidden = true)} />
+            {/if}
+            <span class="chip media-chip">{area || 'Area not set'}</span>
+          </div>
+          <div class="media-body">
+            <div class="name-row">
+              <h2 class="mb-0">{profile.display_name}{profile.age ? `, ${profile.age}` : ''}</h2>
+              <span class="chip level">{profile.skill_level}</span>
             </div>
-          {/each}
-        </div>
-      </section>
-    {/if}
+            <p class="muted mb-0">
+              {profile.gender === 'woman' ? 'Woman' : 'Man'} · interested in {profile.gender_preference} ·
+              ages {profile.min_age}–{profile.max_age}
+            </p>
+            {#if profile.bio}<p class="mb-0">{profile.bio}</p>{/if}
+            <div class="page-actions">
+              <a class="btn btn-primary" href="/discover">Go to Discover</a>
+              <button class="btn btn-outline-secondary" type="button" onclick={() => areaSheet.open()}>Change area</button>
+            </div>
+          </div>
+        </article>
 
-    <section class="sheet-card stack" aria-labelledby="profile-play-title">
-      <div class="spread">
-        <h2 id="profile-play-title" class="mb-0">Play times</h2>
-        <a href="/profile/play-times">Edit</a>
+        {#if photos.length}
+          <section class="sheet-card stack" aria-labelledby="profile-photos-title">
+            <div class="spread">
+              <h2 id="profile-photos-title" class="mb-0">Photos</h2>
+              <a href="/profile/photos">Manage</a>
+            </div>
+            <div class="photo-grid">
+              {#each photos as photo}
+                <div class="photo-slot">
+                  <div class="photo-placeholder" aria-hidden="true"><i class="bi bi-image"></i></div>
+                  {#if photoUrls[photo.photo_id]}
+                    <img
+                      src={photoUrls[photo.photo_id]}
+                      alt={`Photo ${photo.display_order}`}
+                      onerror={(event) => ((event.currentTarget as HTMLImageElement).hidden = true)}
+                    />
+                  {/if}
+                  <span class="photo-status chip" class:success={photo.status === 'approved'} class:danger={photo.status === 'rejected'}>{photo.status === 'approved' ? 'Approved' : photo.status === 'rejected' ? 'Not accepted' : 'Pending'}</span>
+                </div>
+              {/each}
+            </div>
+          </section>
+        {/if}
       </div>
-      <ul class="plain-list">
-        {#each profile.availability as slot}
-          <li>{weekdayName(slot.weekday)}, {slot.start}–{slot.end}</li>
-        {/each}
-      </ul>
-    </section>
 
-    <section class="sheet-card stack" aria-labelledby="profile-area-title">
-      <div class="spread">
-        <h2 id="profile-area-title" class="mb-0">Area</h2>
-        <button class="link-button" type="button" onclick={() => areaSheet.open()}>Change</button>
-      </div>
-      <p class="mb-0">{area || 'No area set yet.'}</p>
-    </section>
+      <div class="profile-side stack">
+        <Disclosure label="Play times" level={2}>
+          <ul class="plain-list">
+            {#each profile.availability as slot}
+              <li>{weekdayName(slot.weekday)}, {slot.start}–{slot.end}</li>
+            {/each}
+          </ul>
+          <a class="disclosure-link" href="/profile/play-times">Edit play times</a>
+        </Disclosure>
 
-    <section class="sheet-card stack" aria-labelledby="profile-settings-title">
-      <div class="spread">
-        <h2 id="profile-settings-title" class="mb-0">Settings</h2>
-        <a href="/settings">Open</a>
+        <Disclosure label="Area" level={2}>
+          <p>{area || 'No area set yet.'}</p>
+          <button class="link-button" type="button" onclick={() => areaSheet.open()}>Change</button>
+        </Disclosure>
+
+        <section class="sheet-card stack" aria-labelledby="profile-settings-title">
+          <div class="spread">
+            <h2 id="profile-settings-title" class="mb-0">Settings</h2>
+            <a href="/settings">Open</a>
+          </div>
+          <p class="muted mb-0">Matching, privacy, export and account controls.</p>
+        </section>
       </div>
-      <p class="muted mb-0">Matching, privacy, export and account controls.</p>
-    </section>
+    </div>
 
     <AreaSheet bind:this={areaSheet} onSaved={(label) => (area = label)} />
     <PreviewDialog bind:this={preview} profile={profile} photoUrl={mainPhotoUrl} {area} />
@@ -220,7 +221,32 @@
 
 <style>
   .profile-page {
-    width: min(100% - 1.5rem, 46rem);
+    width: min(100% - (2 * var(--space-page-x)), 46rem);
+  }
+
+  .profile-columns {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-stack);
+    align-items: start;
+  }
+
+  .disclosure-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--tap);
+    font-weight: 700;
+  }
+
+  @media (min-width: 992px) {
+    .profile-page {
+      width: min(100% - 2rem, 62rem);
+    }
+
+    .profile-columns {
+      grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+      gap: 1rem;
+    }
   }
 
   .level {
@@ -238,7 +264,10 @@
   }
 
   .link-button {
-    min-height: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-self: start;
+    min-height: var(--tap);
     padding: 0;
     border: 0;
     border-radius: 0;
