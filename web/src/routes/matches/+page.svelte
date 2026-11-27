@@ -120,7 +120,7 @@
                       </span>
                     </a>
                   </td>
-                  <td data-label="Matched"><span class="mobile-only">Matched{' '}</span>{relativeDate(match.matched_at)}</td>
+                  <td data-label="Matched"><span class="matched-line"><span class="mobile-only">Matched</span>{' '}<span class="matched-value">{relativeDate(match.matched_at)}</span></span></td>
                   <td data-label="Status">
                     {#if !match.revealed}
                       <span class="chip optic">New match</span>
