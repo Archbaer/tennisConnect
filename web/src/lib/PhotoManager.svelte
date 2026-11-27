@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { ApiError, apiJSON, type Photo } from '#lib/api';
   import { online } from '#lib/offline';
+  import { showToast } from '#lib/toasts';
 
   export let photos: Photo[] = [];
   export let onChange: (() => void) | undefined = undefined;
@@ -128,6 +129,7 @@
       await apiJSON(`/api/v1/photos/${slot.photo_id}/process`, { method: 'POST' });
       await refresh(false);
       resetUpload();
+      showToast("Photo uploaded. It's being checked.");
     } catch (problem) {
       if (cancelled) {
         cancelled = false;

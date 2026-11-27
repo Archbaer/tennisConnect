@@ -1,3 +1,7 @@
+<script lang="ts">
+  import { showToast } from '#lib/toasts';
+</script>
+
 <svelte:head>
   <title>Download your data · Tennis Connect</title>
 </svelte:head>
@@ -15,7 +19,12 @@
       Excludes e-mail, date of birth, coordinates, other players' Instagram handles, signed photo
       URLs and reports other people made.
     </p>
-    <a class="btn btn-primary align-self-start" href="/api/v1/account/export" download="tennis-connect-data.json">
+    <a
+      class="btn btn-primary align-self-start"
+      href="/api/v1/account/export"
+      download="tennis-connect-data.json"
+      onclick={() => showToast('Your data export is downloading.')}
+    >
       Download JSON
     </a>
     <a class="btn btn-outline-secondary align-self-start" href="/settings">Back to settings</a>

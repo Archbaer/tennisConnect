@@ -7,6 +7,7 @@
   import { online } from '#lib/offline';
   import { loadRadius, saveRadius } from '#lib/preferences';
   import SafetyDialog from '#lib/SafetyDialog.svelte';
+  import { showToast } from '#lib/toasts';
 
   let cards: DiscoveryCard[] = [];
   let cursor: string | null = null;
@@ -61,7 +62,10 @@
       confirmPass = null;
       if (result.matched && result.match_id) {
         noteMatchCreated();
+        showToast("It's a match!", { announce: false });
         await goto(`/matches/${result.match_id}/new`);
+      } else {
+        showToast(action === 'like' ? 'Match request sent.' : 'Pass saved.');
       }
     } catch (problem) {
       error = problem instanceof Error ? problem.message : 'That reaction did not save.';
