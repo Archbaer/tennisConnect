@@ -159,8 +159,13 @@ test('landing page has no serious accessibility violations', async ({ page }) =>
 
 test('landing page has no serious accessibility violations in dark', async ({ page }) => {
   await page.goto('/');
+  // initTheme() sets data-bs-theme in the layout's onMount, so its presence
+  // proves hydration finished and the toggle's click handler is attached.
+  await expect(page.locator('html')).toHaveAttribute('data-bs-theme', 'light');
   await page.getByRole('button', { name: 'Use dark theme' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-bs-theme', 'dark');
+  // Theme colours transition; let them settle so axe measures the final dark palette.
+  await page.evaluate(() => Promise.all(document.getAnimations().map((animation) => animation.finished)));
   const results = await new AxeBuilder({ page }).analyze();
   const serious = results.violations.filter(
     (violation) => violation.impact === 'serious' || violation.impact === 'critical'
