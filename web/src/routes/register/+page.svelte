@@ -51,22 +51,32 @@
 
 <section class="page narrow stack">
   {#if underage}
-    <p class="score">Adults only</p>
-    <h1>You need to be 18 or older</h1>
-    <p>
-      Tennis Connect is only for adults. We cannot create an account for someone under 18. This
-      keeps the community and the reporting process consistent.
-    </p>
-    <p class="alert-box" role="alert">{error}</p>
-    <a class="btn btn-outline-secondary" href="/">Back to the start</a>
+    <header class="page-head">
+      <div>
+        <p class="kicker">Adults only</p>
+        <h1>You need to be 18 or older</h1>
+      </div>
+    </header>
+    <div class="sheet-card stack">
+      <p class="mb-0">
+        Tennis Connect is only for adults. We cannot create an account for someone under 18. This
+        keeps the community and the reporting process consistent.
+      </p>
+      <p class="alert-box mb-0" role="alert">{error}</p>
+      <a class="btn btn-outline-secondary align-self-start" href="/">Back to the start</a>
+    </div>
   {:else}
-    <p class="score mb-1"><span class="tennis-ball me-2" aria-hidden="true"></span>New account</p>
-    <h1>Confirm your age</h1>
-    <p>We ask once. Your date of birth is never shown to anyone or returned by the API.</p>
+    <header class="page-head">
+      <div>
+        <p class="kicker">New account</p>
+        <h1>Confirm your age</h1>
+      </div>
+    </header>
+    <p class="muted">We ask once. Your date of birth is never shown to anyone or returned by the API.</p>
     {#if error}
       <p class="alert-box" role="alert">{error}</p>
     {/if}
-    <form class="surface stack" onsubmit={register}>
+    <form class="sheet-card stack" onsubmit={register}>
       <label>
         Date of birth
         <input class="form-control" type="date" name="birth_date" required bind:value={birthDate} max={new Date().toISOString().slice(0, 10)} />

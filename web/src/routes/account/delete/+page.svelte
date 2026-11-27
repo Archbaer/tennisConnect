@@ -43,32 +43,44 @@
 
 <section class="page narrow stack">
   {#if recoverUntil}
-    <p class="score">Scheduled</p>
-    <h1>Your account is hidden</h1>
-    <p>
-      Nothing is visible to other players. Signing in again before
-      {new Date(recoverUntil).toLocaleDateString('en-GB')} restores the account. After that it is
-      deleted.
-    </p>
-    <a class="btn btn-primary" href="/">Return to the start</a>
+    <header class="page-head">
+      <div>
+        <p class="kicker">Scheduled</p>
+        <h1>Your account is hidden</h1>
+      </div>
+    </header>
+    <div class="sheet-card stack">
+      <p>
+        Nothing is visible to other players. Signing in again before
+        {new Date(recoverUntil).toLocaleDateString('en-GB')} restores the account. After that it is
+        deleted.
+      </p>
+      <a class="btn btn-primary align-self-start" href="/">Return to the start</a>
+    </div>
   {:else}
-    <p class="score mb-1"><span class="tennis-ball me-2" aria-hidden="true"></span>Careful</p>
-    <h1>Delete account</h1>
-    <p>
-      Your profile, photos, matches and likes are hidden immediately. You have 30 days to recover by
-      signing in again. After 30 days the account is deleted.
-    </p>
-    <p class="muted">
-      Download your data first if you want a copy. Reports you made are used only for the safety review.
-    </p>
-    {#if error}
-      <p class="alert-box" role="alert">{error}</p>
-    {/if}
-    <div class="row">
-      <button class="btn btn-danger" disabled={deleting} onclick={openConfirm}>
-        {deleting ? 'Deleting…' : 'Delete my account'}
-      </button>
-      <a class="btn btn-outline-secondary" href="/settings">Keep my account</a>
+    <header class="page-head">
+      <div>
+        <p class="kicker">Careful</p>
+        <h1>Delete account</h1>
+      </div>
+    </header>
+    <div class="sheet-card stack">
+      <p>
+        Your profile, photos, matches and likes are hidden immediately. You have 30 days to recover by
+        signing in again. After 30 days the account is deleted.
+      </p>
+      <p class="muted mb-0">
+        Download your data first if you want a copy. Reports you made are used only for the safety review.
+      </p>
+      {#if error}
+        <p class="alert-box mb-0" role="alert">{error}</p>
+      {/if}
+      <div class="row">
+        <button class="btn btn-danger" disabled={deleting} onclick={openConfirm}>
+          {deleting ? 'Deleting…' : 'Delete my account'}
+        </button>
+        <a class="btn btn-outline-secondary" href="/settings">Keep my account</a>
+      </div>
     </div>
   {/if}
 </section>
@@ -76,7 +88,7 @@
 <dialog bind:this={dialog} class="delete-dialog" aria-labelledby="delete-title" aria-describedby="delete-description">
   <div class="dialog-head">
     <div>
-      <p class="score mb-1">Confirm</p>
+      <p class="kicker">Confirm</p>
       <h2 id="delete-title" class="mb-0">Delete your account?</h2>
     </div>
   </div>
@@ -100,7 +112,7 @@
     margin: auto;
     padding: 1.5rem;
     border: 1px solid var(--line);
-    border-radius: var(--radius);
+    border-radius: var(--radius-control);
     background: var(--surface);
     color: var(--ink);
     box-shadow: 0 28px 80px rgb(6 40 31 / 28%);
