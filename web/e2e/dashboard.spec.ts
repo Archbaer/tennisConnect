@@ -91,10 +91,10 @@ test('dashboard theme toggle persists and switches both themes', async ({ page }
   await expect(page.locator('html')).toHaveAttribute('data-bs-theme', 'dark');
   expect(
     await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--paper').trim())
-  ).toBe('#0b0f0d');
+  ).toBe('#071b24');
   expect(
     await page.locator('.site-header').evaluate((element) => getComputedStyle(element).backgroundColor)
-  ).toContain('11, 15, 13');
+  ).toContain('7, 27, 36');
 
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-bs-theme', 'dark');
@@ -103,7 +103,7 @@ test('dashboard theme toggle persists and switches both themes', async ({ page }
   await expect(page.locator('html')).toHaveAttribute('data-bs-theme', 'light');
   expect(
     await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--paper').trim())
-  ).toBe('#f7f9f4');
+  ).toBe('#f3f7ee');
 });
 
 test('dashboard has no Content-Security-Policy violations', async ({ page }) => {
