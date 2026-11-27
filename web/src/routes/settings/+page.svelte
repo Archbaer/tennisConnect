@@ -149,10 +149,10 @@
     justify-content: space-between;
     width: 100%;
     min-height: 2.8rem;
-    padding: 0.65rem 0.15rem;
+    padding: 0.65rem 0.45rem;
     border: 0;
     border-top: 1px solid var(--line);
-    border-radius: 0;
+    border-radius: 10px;
     background: transparent;
     color: var(--ink);
     font: inherit;
@@ -160,13 +160,14 @@
     text-align: left;
     text-decoration: none;
     cursor: pointer;
+    transition: background 160ms ease, color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
   }
 
   .settings-row:hover {
     background: var(--surface-hover);
     color: var(--court);
-    transform: none;
-    box-shadow: none;
+    transform: translateX(2px);
+    box-shadow: inset 3px 0 0 var(--court-light);
   }
 
   .settings-chevron {

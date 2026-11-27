@@ -87,7 +87,7 @@
     background: linear-gradient(165deg, #0e5a3a, var(--court-deep) 62%);
     color: white;
     padding: 2rem 1.4rem;
-    box-shadow: 0 28px 80px rgb(0 0 0 / 28%);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 12%), var(--tc-shadow-3);
   }
 
   .flood {
