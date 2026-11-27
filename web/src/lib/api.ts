@@ -129,8 +129,14 @@ export function distanceLabel(miles: number): string {
   return miles === 0 ? 'Under 1 mile' : `${miles} ${miles === 1 ? 'mile' : 'miles'}`;
 }
 
+const weekdayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
 export function weekdayLabel(day: number): string {
-  return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][day - 1] ?? '';
+  return weekdayNames[day - 1]?.slice(0, 3) ?? '';
+}
+
+export function weekdayName(day: number): string {
+  return weekdayNames[day - 1] ?? '';
 }
 
 export function formatDate(value: string): string {

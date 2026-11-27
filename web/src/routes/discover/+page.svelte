@@ -317,8 +317,8 @@
   }
 
   .skeleton-photo {
+    width: 100%;
     aspect-ratio: 4 / 3;
-    max-height: 20rem;
     background: var(--media-bg);
   }
 

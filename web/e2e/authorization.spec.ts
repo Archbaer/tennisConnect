@@ -46,7 +46,7 @@ test('player detail reads the real discovery API', async ({ page, context }) => 
   await page.goto('/discover');
   await page.getByRole('link', { name: 'View full profile' }).click();
   await expect(page.getByRole('heading', { name: /Navya/ })).toBeVisible();
-  await expect(page.getByText('Tue 18:00–21:00')).toBeVisible();
+  await expect(page.getByText('Tuesday, 18:00–21:00')).toBeVisible();
   await expect(page).toHaveURL(/\/discover\/[0-9a-f-]+\?radius=10$/);
 });
 
