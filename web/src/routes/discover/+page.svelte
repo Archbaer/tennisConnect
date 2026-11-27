@@ -223,7 +223,7 @@
         {/if}
 
         {#if confirmPass === card.player.player_id}
-          <div class="confirm-pass">
+          <div class="confirm-pass sticky-actions">
             <p class="small mb-2">You won't see each other again.</p>
             <div class="d-flex gap-2">
               <button class="btn btn-danger flex-grow-1" onclick={() => react(card.player.player_id, 'pass')} disabled={acting === card.player.player_id}>
@@ -233,7 +233,7 @@
             </div>
           </div>
         {:else}
-          <div class="card-actions">
+          <div class="card-actions sticky-actions">
             <button
               class="btn btn-primary"
               onclick={() => react(card.player.player_id, 'like')}
@@ -275,12 +275,13 @@
 
 <style>
   .discover-page {
-    width: min(100% - 1.5rem, 30rem);
-    padding-block: 1rem 1.5rem;
+    width: min(100% - (2 * var(--space-page-x)), 30rem);
+    padding-block: var(--space-page-top) var(--space-page-bottom);
   }
 
   .discover-head {
     display: flex;
+    flex-wrap: wrap;
     align-items: flex-end;
     justify-content: space-between;
     gap: 0.75rem;
@@ -306,7 +307,10 @@
   }
 
   .profile-link {
+    display: inline-flex;
+    align-items: center;
     justify-self: start;
+    min-height: var(--tap);
     font-weight: 700;
     text-decoration: underline;
     text-underline-offset: 0.18em;
@@ -333,7 +337,7 @@
     background: radial-gradient(circle at 35% 30%, #f0ff9b, var(--ball) 55%, var(--ball-deep));
   }
 
-  @media (max-width: 360px) {
+  @media (max-width: 430px) {
     .discover-head {
       align-items: stretch;
       flex-direction: column;
@@ -341,10 +345,6 @@
 
     .radius {
       width: 100%;
-    }
-
-    .card-actions {
-      grid-template-columns: 1fr;
     }
   }
 </style>

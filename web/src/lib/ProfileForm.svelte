@@ -216,7 +216,9 @@
     </fieldset>
   {/if}
 
-  <button class="btn btn-primary" type="submit" disabled={saving || !$online}>{saving ? 'Saving…' : submitLabel}</button>
+  <div class="sticky-actions save-bar">
+    <button class="btn btn-primary" type="submit" disabled={saving || !$online}>{saving ? 'Saving…' : submitLabel}</button>
+  </div>
 </form>
 
 <style>
