@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
   import { apiJSON, weekdayLabel, type Availability, type Profile } from '#lib/api';
   import { online } from '#lib/offline';
+  import { showToast } from '#lib/toasts';
 
   export let profile: Profile;
   export let onSaved: (() => void) | undefined = undefined;
@@ -57,6 +58,7 @@
       });
       snapshot = JSON.stringify(slots);
       dirty = false;
+      showToast('Play times saved.');
       onSaved?.();
     } catch (problem) {
       error = problem instanceof Error ? problem.message : 'We could not save your play times.';

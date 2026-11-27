@@ -5,6 +5,7 @@
   import Disclosure from '#lib/Disclosure.svelte';
   import { online } from '#lib/offline';
   import { loadSession } from '#lib/session';
+  import { showToast } from '#lib/toasts';
 
   let email = '';
   let error = '';
@@ -36,6 +37,7 @@
         method: 'POST',
         body: JSON.stringify({ email })
       });
+      showToast('Sign-in link sent. Check your inbox.');
       await goto('/check-inbox');
     } catch (problem) {
       error = problem instanceof Error ? problem.message : 'We could not send that link.';

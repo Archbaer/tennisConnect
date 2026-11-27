@@ -14,6 +14,7 @@
   import { noteMatchCreated } from '#lib/matchState';
   import { online } from '#lib/offline';
   import SafetyDialog from '#lib/SafetyDialog.svelte';
+  import { showToast } from '#lib/toasts';
 
   let detail: DiscoveryDetail | null = null;
   let targetID = '';
@@ -64,8 +65,10 @@
       });
       if (result.matched && result.match_id) {
         noteMatchCreated();
+        showToast("It's a match!", { announce: false });
         await goto(`/matches/${result.match_id}/new`);
       } else {
+        showToast(action === 'like' ? 'Match request sent.' : 'Pass saved.');
         await goto('/discover');
       }
     } catch (problem) {
