@@ -296,17 +296,20 @@ test('@mobile collapsible feature cards toggle open and closed', async ({ page }
   await page.setViewportSize({ width: 360, height: 800 });
   await page.goto('/');
   await expect(page.getByRole('heading', { name: /find a real game/i })).toBeVisible();
+  // The layout's onMount (initTheme) runs after every child onMount, so this
+  // proves Disclosure has synced its open state and will not undo the click.
+  await expect(page.locator('html')).toHaveAttribute('data-bs-theme', 'light');
 
   const feature = page.locator('details').filter({ hasText: 'Photos checked first' }).first();
   const body = page.getByText('Moderation runs before visibility.');
-  expect(await feature.evaluate((element) => (element as HTMLDetailsElement).open)).toBe(false);
+  await expect(feature).toHaveJSProperty('open', false);
   await expect(body).toBeHidden();
 
   await feature.locator('summary').click();
-  expect(await feature.evaluate((element) => (element as HTMLDetailsElement).open)).toBe(true);
+  await expect(feature).toHaveJSProperty('open', true);
   await expect(body).toBeVisible();
 
   await feature.locator('summary').click();
-  expect(await feature.evaluate((element) => (element as HTMLDetailsElement).open)).toBe(false);
+  await expect(feature).toHaveJSProperty('open', false);
   await expect(body).toBeHidden();
 });
