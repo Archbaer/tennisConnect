@@ -26,24 +26,28 @@ Bootstrap Icons are self-hosted. No Bootstrap JS.
 
 ## Palette
 
-| Token | Value | Use |
-| --- | --- | --- |
-| `--ink` | `#0A1714` | Body text |
-| `--paper` | `#F7F9F4` | Page background |
-| `--surface` | `#FFFFFF` | Cards, inputs, sheets |
-| `--court-deep` | `#06281F` | Depth, footer, reveal |
-| `--court` | `#0B3B2E` | Primary actions, active nav |
-| `--court-light` | `#146B4A` | Links, secondary structure |
-| `--grass` | `#6FA84A` | Decorative court fill only |
-| `--ball` | `#D8FF3E` | Match accent, active marker |
-| `--clay` | `#B94E2F` | Destructive fill (5:1 with white) |
-| `--clay-deep` | `#8F3B24` | Destructive text |
-| `--muted` | `#4F625B` | Secondary text |
-| `--line` | `#D7E0D8` | Decorative rules |
-| `--sky` | `#2E9CC4` | Focus ring |
+The vibrant court palette is defined once in `web/src/app.css` and documented
+with final light/dark hex values, usage and measured contrast in
+[`palette.md`](./palette.md).
 
-Usage: 60% paper/surface, 30% court greens, 10% ball/clay. Ball yellow always
-sits with words. Clay is only destructive. Grass is only scenery.
+Headline values:
+
+| Token | Light | Dark | Use |
+| --- | --- | --- | --- |
+| `--paper` | `#F3F7EE` | `#071B24` | Page background |
+| `--surface` | `#FCFDF9` | `#0E2832` | Cards, inputs, sheets |
+| `--ink` | `#0B231A` | `#EAF7F0` | Body text |
+| `--court` | `#0F5132` | `#2E9B6E` | Primary structure, active nav |
+| `--court-deep` | `#0B3D2A` | `#0B2B32` | Footer, reveal, depth |
+| `--ball` | `#CCFF00` | `#D4F000` | Primary CTA, active marker, chart line |
+| `--ball-ink` | `#0B231A` | `#08201A` | Text on yellow only |
+| `--clay` | `#C2511D` | `#C65A28` | Clay highlight and chart secondary |
+| `--sky` | `#0E7490` | `#7DD3E8` | Focus ring |
+
+Usage: warm paper/surface and court green carry the layout; optic yellow is
+reserved for primary actions, the active-tab indicator, chart lines and key
+stat accents; clay is the secondary highlight and warning colour. Yellow never
+sits as text on a light surface. Grass is only scenery.
 
 ## Radius and spacing
 
