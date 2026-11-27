@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
   import { apiJSON, weekdayLabel, type Availability, type Profile } from '#lib/api';
   import { online } from '#lib/offline';
+  import { showToast } from '#lib/toasts';
 
   export let initial: Profile | null = null;
   export let submitLabel = 'Save profile';
@@ -82,6 +83,7 @@
       });
       snapshot = JSON.stringify(form);
       dirty = false;
+      showToast('Profile saved.');
       onSaved?.();
     } catch (problem) {
       error = problem instanceof Error ? problem.message : 'We could not save that profile.';

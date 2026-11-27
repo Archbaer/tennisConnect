@@ -9,6 +9,7 @@
   import { unrevealedMatches } from '#lib/matchState';
   import { loadSession, session } from '#lib/session';
   import { initTheme, theme, toggleTheme } from '#lib/theme';
+  import Toaster from '#lib/Toaster.svelte';
 
   let { children } = $props();
 
@@ -251,6 +252,8 @@
       </a>
     </nav>
   {/if}
+
+  <Toaster />
 </div>
 
 <style>

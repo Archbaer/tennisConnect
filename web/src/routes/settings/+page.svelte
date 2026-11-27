@@ -120,7 +120,7 @@
     </div>
   {/if}
 
-  <AreaSheet bind:this={areaSheet} onSaved={areaSaved} />
+  <AreaSheet bind:this={areaSheet} onSaved={areaSaved} announceToast={false} />
   <MatchingSheet bind:this={matchingSheet} onSaved={matchingSaved} />
 </section>
 

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tick } from 'svelte';
   import { apiJSON, reportCategories } from '#lib/api';
+  import { showToast } from '#lib/toasts';
 
   export let targetId = '';
   export let targetName = '';
@@ -66,6 +67,7 @@
         body: JSON.stringify({ target_id: targetId, category, details })
       });
       reported = true;
+      showToast('Report submitted.');
       onReported?.();
     } catch (problem) {
       error = problem instanceof Error ? problem.message : 'We could not send that report.';
@@ -83,6 +85,7 @@
         body: JSON.stringify({ target_id: targetId })
       });
       dialog.close();
+      showToast('Player blocked.');
       onBlocked?.();
     } catch (problem) {
       error = problem instanceof Error ? problem.message : 'We could not block that player.';

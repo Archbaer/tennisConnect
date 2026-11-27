@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tick } from 'svelte';
   import { apiJSON, type Profile } from '#lib/api';
+  import { showToast } from '#lib/toasts';
 
   export let onSaved: (() => void) | undefined = undefined;
 
@@ -55,6 +56,7 @@
         })
       });
       dialog.close();
+      showToast('Matching preferences saved.', { announce: false });
       onSaved?.();
     } catch (problem) {
       error = problem instanceof Error ? problem.message : 'We could not save those settings.';

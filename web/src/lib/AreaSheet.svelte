@@ -3,8 +3,10 @@
   import { apiJSON } from '#lib/api';
   import AreaEditor from '#lib/AreaEditor.svelte';
   import { loadRadius, saveRadius } from '#lib/preferences';
+  import { showToast } from '#lib/toasts';
 
   export let onSaved: ((label: string) => void) | undefined = undefined;
+  export let announceToast = true;
 
   let dialog: HTMLDialogElement;
   let heading: HTMLHeadingElement;
@@ -38,6 +40,7 @@
   function saved(label: string) {
     areaLabel = label;
     dialog.close();
+    showToast(`Area saved: ${label}.`, { announce: announceToast });
     onSaved?.(label);
   }
 </script>
