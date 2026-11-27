@@ -2,6 +2,7 @@
   import { onMount, tick } from 'svelte';
   import { goto } from '$app/navigation';
   import { apiJSON, relativeDate, type Match } from '#lib/api';
+  import LoadingSkeleton from '#lib/LoadingSkeleton.svelte';
   import { setMatches } from '#lib/matchState';
   import SafetyDialog from '#lib/SafetyDialog.svelte';
   import { swipeRow } from '#lib/swipe';
@@ -61,7 +62,7 @@
   </header>
 
   {#if loading}
-    <p role="status">Loading matches…</p>
+    <LoadingSkeleton variant="matches" />
   {:else if error}
     <p class="alert-box" role="alert">{error}</p>
   {:else}

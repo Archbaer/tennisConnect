@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { apiJSON, relativeDate, type Match } from '#lib/api';
+  import LoadingSkeleton from '#lib/LoadingSkeleton.svelte';
   import SafetyDialog from '#lib/SafetyDialog.svelte';
 
   let match: Match | null = null;
@@ -55,13 +56,7 @@
 
 <section class="page narrow stack">
   {#if loading}
-    <div class="card p-3" aria-hidden="true">
-      <div class="placeholder-glow">
-        <p class="placeholder col-6"></p>
-        <p class="placeholder col-10"></p>
-      </div>
-    </div>
-    <p class="visually-hidden" role="status">Loading match…</p>
+    <LoadingSkeleton variant="match" />
   {:else if error && !match}
     <div class="alert alert-danger stack" role="alert">
       <p class="mb-0">{error}</p>

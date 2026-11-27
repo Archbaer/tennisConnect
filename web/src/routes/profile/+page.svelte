@@ -3,6 +3,7 @@
   import { apiJSON, type Photo, type Profile, weekdayName } from '#lib/api';
   import { playWindows, type PlayWindow } from '#lib/dashboard';
   import AreaSheet from '#lib/AreaSheet.svelte';
+  import LoadingSkeleton from '#lib/LoadingSkeleton.svelte';
   import Disclosure from '#lib/Disclosure.svelte';
   import PreviewDialog from '#lib/PreviewDialog.svelte';
 
@@ -95,7 +96,7 @@
   </header>
 
   {#if loading}
-    <p role="status">Loading your profile…</p>
+    <LoadingSkeleton variant="profile" />
   {:else if !profile}
     <div class="sheet-card stack">
       <p class="alert-box mb-0" role="alert">{error || 'Your profile is not complete.'}</p>
