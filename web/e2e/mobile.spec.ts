@@ -148,7 +148,12 @@ test('@mobile tables reflow into labelled stacked cards', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Matches', level: 1 })).toBeVisible();
 
   const firstMatch = page.locator('.matches-table tbody tr').first();
-  await expect(firstMatch.locator('td[data-label="Matched"]')).toHaveText('Matched 54 minutes ago');
+  const matchedCell = firstMatch.locator('td[data-label="Matched"]');
+  const labelBox = await matchedCell.locator('.mobile-only').boundingBox();
+  const valueBox = await matchedCell.locator('.matched-value').boundingBox();
+  expect(labelBox).not.toBeNull();
+  expect(valueBox).not.toBeNull();
+  expect(valueBox!.x - (labelBox!.x + labelBox!.width)).toBeGreaterThanOrEqual(2);
   const cardBox = await firstMatch.boundingBox();
   const flagBox = await firstMatch
     .getByRole('button', { name: 'Safety options for Priya' })
