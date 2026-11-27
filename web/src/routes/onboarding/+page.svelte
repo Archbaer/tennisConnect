@@ -52,17 +52,24 @@
 </svelte:head>
 
 <section class="page narrow stack">
-  <div>
-    <p class="score mb-1"><span class="tennis-ball me-2" aria-hidden="true"></span>Onboarding · {step} of 3</p>
-    <h1>Build your player card</h1>
-    <p class="muted">Only what another player needs to decide whether to play with you.</p>
-    <div class="progress" role="progressbar" aria-label="Onboarding progress" aria-valuenow={step} aria-valuemin="1" aria-valuemax="3">
-      <div class="progress-bar" style={`width: ${(step / 3) * 100}%`}></div>
+  <header class="page-head">
+    <div>
+      <p class="kicker">Onboarding · {step} of 3</p>
+      <h1>Build your player card</h1>
     </div>
+  </header>
+
+  <div class="onboarding-tracker">
+    <div class="segmented" role="progressbar" aria-label="Onboarding progress" aria-valuenow={step} aria-valuemin="1" aria-valuemax="3">
+      {#each [1, 2, 3] as marker}
+        <span class="segment" class:on={step >= marker}></span>
+      {/each}
+    </div>
+    <p class="muted mb-0">Only what another player needs to decide whether to play with you.</p>
   </div>
 
   {#if step === 1}
-    <div class="surface stack">
+    <div class="sheet-card stack">
       <h2><i class="bi bi-person me-2" aria-hidden="true"></i>Your profile</h2>
       <ProfileForm
         initial={profile}
@@ -74,7 +81,7 @@
     </div>
   {:else if step === 2}
     <PhotoManager {photos} onChange={refreshPhotos} />
-    <div class="surface stack">
+    <div class="sheet-card stack">
       <h2><i class="bi bi-geo-alt me-2" aria-hidden="true"></i>Where you play</h2>
       <AreaEditor
         initialArea={areaLabel}
@@ -92,7 +99,7 @@
       >
     </div>
   {:else}
-    <div class="surface stack">
+    <div class="sheet-card stack">
       <h2><i class="bi bi-flag me-2" aria-hidden="true"></i>Ready check</h2>
       <ul class="checklist">
         <li><span>Profile</span><strong>{profile ? 'Saved' : 'Missing'}</strong></li>
@@ -115,11 +122,19 @@
   {/if}
 </section>
 
-
 <style>
+  .onboarding-tracker {
+    display: grid;
+    gap: 0.4rem;
+  }
+
+  .onboarding-tracker .segmented {
+    height: 8px;
+  }
+
   .checklist {
     display: grid;
-    gap: 0.35rem;
+    gap: 0;
     margin: 0;
     padding: 0;
     list-style: none;
@@ -129,7 +144,11 @@
     display: flex;
     justify-content: space-between;
     gap: 1rem;
-    padding-block: 0.45rem;
+    padding-block: 0.55rem;
     border-bottom: 1px solid var(--line);
+  }
+
+  .checklist li:last-child {
+    border-bottom: 0;
   }
 </style>
