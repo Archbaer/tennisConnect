@@ -8,10 +8,11 @@
   import { online, watchConnectivity } from '#lib/offline';
   import { unrevealedMatches } from '#lib/matchState';
   import { loadSession, session } from '#lib/session';
+  import { initTheme, theme, toggleTheme } from '#lib/theme';
 
   let { children } = $props();
 
-  const protectedPrefixes = ['/discover', '/matches', '/profile', '/onboarding', '/settings', '/account'];
+  const protectedPrefixes = ['/dashboard', '/discover', '/matches', '/profile', '/onboarding', '/settings', '/account'];
 
   function needsAccount(path: string): boolean {
     if (path === '/account/recovery') return false;
@@ -27,6 +28,7 @@
   }
 
   onMount(() => {
+    const stopTheme = initTheme();
     const stop = watchConnectivity();
     loadSession().then((state) => {
       const path = window.location.pathname;
@@ -37,7 +39,10 @@
         goto('/appeal', { replace: true });
       }
     });
-    return stop;
+    return () => {
+      stop();
+      stopTheme();
+    };
   });
 </script>
 
@@ -55,18 +60,30 @@
         <span class="tennis-ball" aria-hidden="true"></span>
         Tennis Connect
       </a>
-      <nav class="nav nav-pills desktop-nav" aria-label="Primary">
-        {#if $session === 'signed-in'}
-          <a class="nav-link" class:active={isActive('/discover')} aria-current={isActive('/discover') ? 'page' : undefined} href="/discover"><i class="bi bi-compass" aria-hidden="true"></i> Discover</a>
-          <a class="nav-link" class:active={isActive('/matches')} aria-current={isActive('/matches') ? 'page' : undefined} aria-label={$unrevealedMatches > 0 ? 'Matches, new match' : undefined} href="/matches"><i class="bi bi-people" aria-hidden="true"></i> Matches</a>
-          <a class="nav-link" class:active={isActive('/profile')} aria-current={isActive('/profile') ? 'page' : undefined} href="/profile"><i class="bi bi-person" aria-hidden="true"></i> You</a>
-          <a class="nav-link" class:active={isActive('/settings')} aria-current={isActive('/settings') ? 'page' : undefined} href="/settings"><i class="bi bi-sliders" aria-hidden="true"></i> Settings</a>
-        {:else if $session === 'suspended'}
-          <a class="nav-link" href="/appeal"><i class="bi bi-shield-exclamation" aria-hidden="true"></i> Appeal</a>
-        {:else}
-          <a class="btn btn-primary btn-sm" href="/#sign-in"><i class="bi bi-box-arrow-in-right" aria-hidden="true"></i> Sign in</a>
-        {/if}
-      </nav>
+      <div class="header-actions">
+        <nav class="nav nav-pills desktop-nav" aria-label="Primary">
+          {#if $session === 'signed-in'}
+            <a class="nav-link" class:active={isActive('/dashboard')} aria-current={isActive('/dashboard') ? 'page' : undefined} href="/dashboard"><i class="bi bi-grid-1x2" aria-hidden="true"></i> Dashboard</a>
+            <a class="nav-link" class:active={isActive('/discover')} aria-current={isActive('/discover') ? 'page' : undefined} href="/discover"><i class="bi bi-compass" aria-hidden="true"></i> Discover</a>
+            <a class="nav-link" class:active={isActive('/matches')} aria-current={isActive('/matches') ? 'page' : undefined} aria-label={$unrevealedMatches > 0 ? 'Matches, new match' : undefined} href="/matches"><i class="bi bi-people" aria-hidden="true"></i> Matches</a>
+            <a class="nav-link" class:active={isActive('/profile')} aria-current={isActive('/profile') ? 'page' : undefined} href="/profile"><i class="bi bi-person" aria-hidden="true"></i> You</a>
+            <a class="nav-link" class:active={isActive('/settings')} aria-current={isActive('/settings') ? 'page' : undefined} href="/settings"><i class="bi bi-sliders" aria-hidden="true"></i> Settings</a>
+          {:else if $session === 'suspended'}
+            <a class="nav-link" href="/appeal"><i class="bi bi-shield-exclamation" aria-hidden="true"></i> Appeal</a>
+          {:else}
+            <a class="btn btn-primary btn-sm" href="/#sign-in"><i class="bi bi-box-arrow-in-right" aria-hidden="true"></i> Sign in</a>
+          {/if}
+        </nav>
+        <button
+          class="theme-toggle"
+          type="button"
+          onclick={toggleTheme}
+          aria-label={$theme === 'dark' ? 'Use light theme' : 'Use dark theme'}
+          title={$theme === 'dark' ? 'Use light theme' : 'Use dark theme'}
+        >
+          <i class="bi" class:bi-sun={$theme === 'dark'} class:bi-moon-stars={$theme === 'light'} aria-hidden="true"></i>
+        </button>
+      </div>
     </div>
     <div class="net-line" aria-hidden="true"></div>
   </header>
@@ -83,6 +100,10 @@
 
   {#if $session === 'signed-in' && !isMatchReveal(page.url.pathname)}
     <nav class="tab-bar" aria-label="Primary mobile">
+      <a href="/dashboard" class:active={isActive('/dashboard')} aria-current={isActive('/dashboard') ? 'page' : undefined}>
+        <i class="bi bi-grid-1x2" aria-hidden="true"></i>
+        <span>Dashboard</span>
+      </a>
       <a href="/discover" class:active={isActive('/discover')} aria-current={isActive('/discover') ? 'page' : undefined}>
         <i class="bi bi-compass" aria-hidden="true"></i>
         <span>Discover</span>
@@ -127,6 +148,33 @@
     padding-block: 0.7rem;
   }
 
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  .theme-toggle {
+    flex: 0 0 auto;
+    width: 2.4rem;
+    height: 2.4rem;
+    min-height: 0;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--court);
+    box-shadow: none;
+  }
+
+  .theme-toggle:hover {
+    background: var(--court);
+    color: white;
+    transform: none;
+    box-shadow: none;
+  }
+
   .brand {
     display: inline-flex;
     align-items: center;
@@ -143,6 +191,16 @@
     font-size: 0.9rem;
     font-weight: 700;
     flex-wrap: nowrap;
+  }
+
+  @media (min-width: 768px) and (max-width: 980px) {
+    .nav-pills {
+      font-size: 0.8rem;
+    }
+
+    .nav-pills .nav-link {
+      padding-inline: 0.5rem;
+    }
   }
 
   .nav-pills .nav-link {
@@ -229,7 +287,7 @@
       bottom: 0;
       z-index: 30;
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(5, minmax(0, 1fr));
       padding-bottom: env(safe-area-inset-bottom);
       border-top: 1px solid var(--line);
       background: rgb(255 255 255 / 96%);
