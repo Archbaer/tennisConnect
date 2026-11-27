@@ -49,6 +49,9 @@ export function swipeRow(node: HTMLElement, options: SwipeRowOptions) {
   function resetStyles() {
     node.classList.remove('is-swiping', 'is-revealed', 'is-armed');
     node.style.setProperty('--swipe-offset', '0px');
+    node.style.setProperty('--swipe-reveal', '0px');
+    node.style.setProperty('--swipe-progress', '0');
+    node.style.setProperty('--swipe-scale', '0.82');
   }
 
   function onPointerDown(event: PointerEvent) {
@@ -87,7 +90,13 @@ export function swipeRow(node: HTMLElement, options: SwipeRowOptions) {
     }
     if (axis !== 'horizontal') return;
     if (event.cancelable) event.preventDefault();
-    node.style.setProperty('--swipe-offset', `${swipeOffset(dx)}px`);
+    const offset = swipeOffset(dx);
+    const reveal = dx < 0 ? Math.min(Math.abs(offset), SWIPE_MAX_PX) : 0;
+    const progress = Math.min(reveal / SWIPE_OPEN_PX, 1);
+    node.style.setProperty('--swipe-offset', `${offset}px`);
+    node.style.setProperty('--swipe-reveal', `${reveal}px`);
+    node.style.setProperty('--swipe-progress', progress.toFixed(3));
+    node.style.setProperty('--swipe-scale', `${(0.82 + progress * 0.18).toFixed(3)}`);
     const outcome = swipeOutcome(dx);
     node.classList.toggle('is-revealed', outcome === 'reveal');
     node.classList.toggle('is-armed', outcome === 'open');
@@ -143,6 +152,9 @@ export function swipeRow(node: HTMLElement, options: SwipeRowOptions) {
       node.removeEventListener('pointercancel', onPointerCancel);
       node.removeEventListener('click', onClick, true);
       node.style.removeProperty('--swipe-offset');
+      node.style.removeProperty('--swipe-reveal');
+      node.style.removeProperty('--swipe-progress');
+      node.style.removeProperty('--swipe-scale');
     }
   };
 }
