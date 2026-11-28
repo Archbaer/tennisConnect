@@ -47,6 +47,17 @@
     <LoadingSkeleton variant="settings" />
   {:else}
     <div class="settings-grid">
+    <section class="sheet-card settings-card" aria-labelledby="settings-account-title">
+      <h2 id="settings-account-title"><i class="bi bi-person me-2" aria-hidden="true"></i>Account</h2>
+      <p class="settings-row settings-row-static">
+        <span>Email address — sign-in only</span>
+      </p>
+      <button class="settings-row" type="button" onclick={signOut}>
+        <span>Sign out</span>
+        <i class="bi bi-chevron-right settings-chevron" aria-hidden="true"></i>
+      </button>
+    </section>
+
     <section class="sheet-card settings-card" aria-labelledby="settings-card-title">
       <h2 id="settings-card-title"><i class="bi bi-person-vcard me-2" aria-hidden="true"></i>Your card</h2>
       <a class="settings-row" href="/profile/edit">
@@ -110,13 +121,6 @@
       <p class="settings-note">E-mail is used for sign-in only. It is never shown to another player.</p>
     </section>
 
-    <section class="sheet-card settings-card" aria-labelledby="settings-session-title">
-      <h2 id="settings-session-title"><i class="bi bi-box-arrow-right me-2" aria-hidden="true"></i>Session</h2>
-      <button class="settings-row" type="button" onclick={signOut}>
-        <span>Sign out</span>
-        <i class="bi bi-chevron-right settings-chevron" aria-hidden="true"></i>
-      </button>
-    </section>
     </div>
   {/if}
 
@@ -178,6 +182,20 @@
     color: var(--court);
     transform: translateX(2px);
     box-shadow: inset 3px 0 0 var(--court-light);
+  }
+
+  .settings-row-static {
+    margin: 0;
+    cursor: default;
+    color: var(--muted);
+    font-weight: 500;
+  }
+
+  .settings-row-static:hover {
+    background: transparent;
+    color: var(--muted);
+    transform: none;
+    box-shadow: none;
   }
 
   .settings-chevron {
