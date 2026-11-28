@@ -125,6 +125,10 @@ WHERE s.user_id <> $1
 		SELECT 1 FROM reactions r
 		WHERE r.actor_id = $1 AND r.target_id = s.user_id
 	)
+	AND NOT EXISTS (
+		SELECT 1 FROM reports rep
+		WHERE rep.reporter_id = $1 AND rep.target_id = s.user_id
+	)
 	AND u.birth_date <= (current_date - interval '18 years')::date
 	AND u.last_active_at > now() - interval '7 days'
 	AND EXISTS (
