@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -14,6 +15,7 @@ import (
 
 	"tennisconnect/internal/auth"
 	"tennisconnect/internal/httpapi"
+	"tennisconnect/internal/observability"
 )
 
 const (
@@ -135,6 +137,11 @@ func (s *Service) Report(w http.ResponseWriter, r *http.Request, userID string) 
 		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
 		return
 	}
+	// Category only: report details are never logged.
+	slog.Info("safety.report_submitted", "event", "safety.report_submitted",
+		"actor_ref", observability.ActorRef(userID),
+		"target_ref", observability.ActorRef(input.TargetID),
+		"category", input.Category)
 	httpapi.WriteJSON(w, http.StatusCreated, map[string]string{"report_id": reportID, "status": "open"})
 }
 
@@ -336,6 +343,12 @@ func (s *Service) decide(w http.ResponseWriter, r *http.Request, reviewerID stri
 		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
 		return
 	}
+	event := "safety.report_dismissed"
+	if ban {
+		event = "safety.reviewer_banned"
+	}
+	slog.Info(event, "event", event, "actor_ref", observability.ActorRef(reviewerID),
+		"target_ref", observability.ActorRef(targetID), "category", category)
 	httpapi.WriteJSON(w, http.StatusOK, map[string]string{"status": newStatus})
 }
 

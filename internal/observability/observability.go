@@ -42,7 +42,7 @@ func New(level, format string, writer io.Writer) (*slog.Logger, error) {
 	if writer == nil {
 		writer = os.Stdout
 	}
-	options := &slog.HandlerOptions{Level: slogLevel}
+	options := &slog.HandlerOptions{Level: slogLevel, ReplaceAttr: redactAttr}
 	switch strings.ToLower(strings.TrimSpace(format)) {
 	case "", "json":
 		return slog.New(slog.NewJSONHandler(writer, options)), nil

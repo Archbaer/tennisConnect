@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"html/template"
+	"log/slog"
 	"mime"
 	"net/http"
 	"strings"
@@ -136,14 +137,17 @@ func (a *Service) VerifyLink(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 	if !a.limitIP(ctx, w, r) {
+		logAuthFailure("rate_limited")
 		return
 	}
 	if !parseAuthForm(w, r) {
+		logAuthFailure("invalid_request")
 		httpapi.WriteError(w, http.StatusBadRequest, "invalid request")
 		return
 	}
 	token := r.PostForm.Get("token")
 	if !validAuthToken(token) {
+		logAuthFailure("invalid_or_expired_token")
 		httpapi.WriteError(w, http.StatusUnauthorized, "invalid or expired link")
 		return
 	}
@@ -161,6 +165,7 @@ func (a *Service) VerifyLink(w http.ResponseWriter, r *http.Request) {
 	defer tx.Rollback()
 	identity, err := consumeLoginToken(ctx, tx, sha256.Sum256([]byte(token)))
 	if errors.Is(err, sql.ErrNoRows) {
+		logAuthFailure("invalid_or_expired_token")
 		httpapi.WriteError(w, http.StatusUnauthorized, "invalid or expired link")
 		return
 	}
@@ -184,9 +189,11 @@ func (a *Service) VerifyLink(w http.ResponseWriter, r *http.Request) {
 		// Signing in inside the window issues a recovery-only credential. The
 		// account stays deleted until the owner explicitly chooses to recover.
 		if time.Since(deletedAt.Time) > recoveryDays*24*time.Hour {
+			logAuthFailure("invalid_or_expired_token")
 			httpapi.WriteError(w, http.StatusUnauthorized, "invalid or expired link")
 			return
 		}
+		logAuthFailure("recovery_required")
 		recoveryToken, err := createRecoverySession(ctx, tx, userID)
 		if err != nil {
 			httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
@@ -217,6 +224,7 @@ func (a *Service) VerifyLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	setSessionCookie(w, sessionToken, a.CookieSecure)
+	logAuthSuccess(userID)
 	if strings.Contains(r.Header.Get("Accept"), "text/html") {
 		http.Redirect(w, r, a.AppBaseURL+"/discover", http.StatusSeeOther)
 		return
@@ -233,19 +241,23 @@ func (a *Service) Register(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 	if !a.limitIP(ctx, w, r) {
+		logAuthFailure("rate_limited")
 		return
 	}
 	if !parseAuthForm(w, r) {
+		logAuthFailure("invalid_request")
 		httpapi.WriteError(w, http.StatusBadRequest, "invalid request")
 		return
 	}
 	token := r.PostForm.Get("token")
 	birthDate, err := time.Parse("2006-01-02", r.PostForm.Get("birth_date"))
 	if !validAuthToken(token) {
+		logAuthFailure("invalid_or_expired_token")
 		httpapi.WriteError(w, http.StatusUnauthorized, "invalid or expired link")
 		return
 	}
 	if err != nil || !isAdult(birthDate, time.Now()) {
+		logAuthFailure("underage")
 		httpapi.WriteError(w, http.StatusBadRequest, "must be 18 or older")
 		return
 	}
@@ -263,6 +275,7 @@ func (a *Service) Register(w http.ResponseWriter, r *http.Request) {
 	defer tx.Rollback()
 	identity, err := consumeLoginToken(ctx, tx, sha256.Sum256([]byte(token)))
 	if errors.Is(err, sql.ErrNoRows) {
+		logAuthFailure("invalid_or_expired_token")
 		httpapi.WriteError(w, http.StatusUnauthorized, "invalid or expired link")
 		return
 	}
@@ -280,6 +293,11 @@ func (a *Service) Register(w http.ResponseWriter, r *http.Request) {
 		var deletedAt, bannedAt sql.NullTime
 		err = tx.QueryRowContext(ctx, "SELECT id, deleted_at, banned_at FROM users WHERE email_lookup_hmac = $1", identity.emailHMAC).Scan(&userID, &deletedAt, &bannedAt)
 		if err == nil && (deletedAt.Valid || bannedAt.Valid) {
+			if bannedAt.Valid {
+				logAuthFailure("banned")
+			} else {
+				logAuthFailure("recovery_required")
+			}
 			httpapi.WriteError(w, http.StatusUnauthorized, "invalid or expired link")
 			return
 		}
@@ -305,6 +323,7 @@ func (a *Service) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	setSessionCookie(w, sessionToken, a.CookieSecure)
+	logAuthSuccess(userID)
 	httpapi.WriteJSON(w, http.StatusOK, map[string]string{"message": "signed in"})
 }
 
@@ -325,6 +344,7 @@ func (a *Service) SignOut(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	clearSessionCookie(w, a.CookieSecure)
+	slog.Info("auth.logout", "event", "auth.logout")
 	httpapi.WriteJSON(w, http.StatusOK, map[string]string{"message": "signed out"})
 }
 

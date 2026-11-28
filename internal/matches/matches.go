@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"tennisconnect/internal/httpapi"
+	"tennisconnect/internal/observability"
 )
 
 const (
@@ -499,6 +500,9 @@ func (s *Service) Block(w http.ResponseWriter, r *http.Request, userID string) {
 		httpapi.WriteError(w, http.StatusServiceUnavailable, "temporarily unavailable")
 		return
 	}
+	slog.Info("safety.block_created", "event", "safety.block_created",
+		"actor_ref", observability.ActorRef(userID),
+		"target_ref", observability.ActorRef(input.TargetID))
 	w.WriteHeader(http.StatusNoContent)
 }
 

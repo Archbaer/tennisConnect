@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"tennisconnect/internal/safety"
 	"tennisconnect/internal/testutil"
 )
 
@@ -1349,6 +1350,71 @@ func fetchDetail(t *testing.T, service *Service, viewerID, targetID, query strin
 		}
 	}
 	return response, payload
+}
+
+func TestDiscoveryExcludesReportedTargets(t *testing.T) {
+	testutil.ResetTables(t)
+	service, _ := newDiscoveryService(t)
+	reporter := addViewer(t, defaultViewer("reporter"))
+	other := addViewer(t, defaultViewer("other"))
+	target := addCandidate(t, defaultCandidate("target"))
+
+	mustExec(t, `
+		INSERT INTO reports (reporter_id, target_id, category)
+		VALUES ($1, $2, 'harassment')`, reporter, target)
+
+	if _, page := fetchPage(t, service, reporter, "?radius=10&limit=50"); contains(cardNames(page), "target") {
+		t.Fatalf("reporter still sees the reported player: %v", cardNames(page))
+	}
+	if response, _ := fetchDetail(t, service, reporter, target, "?radius=10"); response.Code != http.StatusNotFound {
+		t.Fatalf("reported detail status = %d, want 404", response.Code)
+	}
+	if _, page := fetchPage(t, service, other, "?radius=10&limit=50"); !contains(cardNames(page), "target") {
+		t.Fatalf("unrelated viewer lost the reported player: %v", cardNames(page))
+	}
+
+	// Only the reporter's view changes: the reported player still sees them.
+	if _, page := fetchPage(t, service, target, "?radius=10&limit=50"); !contains(cardNames(page), "reporter") {
+		t.Fatalf("reported player lost the reporter: %v", cardNames(page))
+	}
+
+	// A dismissed report still hides the target from its reporter.
+	mustExec(t, "UPDATE reports SET status = 'dismissed' WHERE reporter_id = $1 AND target_id = $2", reporter, target)
+	if _, page := fetchPage(t, service, reporter, "?radius=10&limit=50"); contains(cardNames(page), "target") {
+		t.Fatalf("dismissed report no longer hides the target: %v", cardNames(page))
+	}
+	if response, _ := fetchDetail(t, service, reporter, target, "?radius=10"); response.Code != http.StatusNotFound {
+		t.Fatalf("dismissed report detail status = %d, want 404", response.Code)
+	}
+}
+
+func TestReportThroughAPIHidesTargetOnReload(t *testing.T) {
+	testutil.ResetTables(t)
+	service, _ := newDiscoveryService(t)
+	reporter := addViewer(t, defaultViewer("reporter"))
+	target := addCandidate(t, defaultCandidate("target"))
+	if _, page := fetchPage(t, service, reporter, "?radius=10&limit=50"); !contains(cardNames(page), "target") {
+		t.Fatalf("target not visible before the report: %v", cardNames(page))
+	}
+
+	reports := &safety.Service{DB: testutil.DB, AppBaseURL: "http://localhost:8080",
+		HMACKey: bytes.Repeat([]byte{7}, 32)}
+	body := fmt.Sprintf(`{"target_id":%q,"category":"harassment"}`, target)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/reports", strings.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	reports.Report(response, request, reporter)
+	if response.Code != http.StatusCreated {
+		t.Fatalf("report status = %d, body = %s", response.Code, response.Body.String())
+	}
+
+	// The next discovery load is the reload seen by the client.
+	if _, page := fetchPage(t, service, reporter, "?radius=10&limit=50"); contains(cardNames(page), "target") {
+		t.Fatalf("reported target returned on reload: %v", cardNames(page))
+	}
+	if response, _ := fetchDetail(t, service, reporter, target, "?radius=10"); response.Code != http.StatusNotFound {
+		t.Fatalf("reported detail returned %d, want 404", response.Code)
+	}
 }
 
 func TestDiscoveryDetailReturnsFullVisibleCard(t *testing.T) {
