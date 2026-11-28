@@ -2,12 +2,20 @@
   import { onMount } from 'svelte';
   import { ApiError, apiJSON, type Photo } from '#lib/api';
   import { online } from '#lib/offline';
+  import {
+    addControlText,
+    photoStatusCopy,
+    slotLimitCopy,
+    uploadFailureCopy,
+    type PhotoAction,
+    type UploadFailure,
+    type UploadFailureDetail
+  } from '#lib/photoState';
   import { showToast } from '#lib/toasts';
 
   export let photos: Photo[] = [];
   export let onChange: (() => void) | undefined = undefined;
 
-  let error = '';
   let busy = false;
   let uploading = false;
   let processing = false;
@@ -15,17 +23,21 @@
   let progress = 0;
   let previewUrl = '';
   let pendingFile: File | null = null;
-  let uploadFailed = false;
+  let failure: UploadFailure | '' = '';
+  let failureDetail: UploadFailureDetail = {};
   let cancelled = false;
   let request: XMLHttpRequest | null = null;
   let fileInput: HTMLInputElement;
   let urls: Record<string, string> = {};
   let announcement = '';
   let lastStatuses = new Map<string, Photo['status']>();
+  let slotLimit = false;
 
   const slots = [1, 2, 3];
   const maxBytes = 5 * 1024 * 1024;
   const maxPixels = 20_000_000;
+
+  $: atSlotLimit = photos.length >= 3 || slotLimit;
 
   onMount(() => {
     refresh();
@@ -35,6 +47,35 @@
 
   function photoAt(order: number): Photo | undefined {
     return photos.find((photo) => photo.display_order === order);
+  }
+
+  function actionLabel(action: PhotoAction): string {
+    switch (action) {
+      case 'check_again':
+        return 'Check again';
+      case 'upload_another':
+        return 'Upload another photo';
+      case 'retry':
+        return 'Retry';
+      case 'choose_another':
+        return 'Choose another';
+      default:
+        return 'Try again';
+    }
+  }
+
+  function openPicker() {
+    fileInput?.click();
+  }
+
+  function runAction(action: PhotoAction) {
+    if (action === 'check_again') return;
+    if (action === 'try_again' || action === 'retry') {
+      if (pendingFile) void uploadFile(pendingFile);
+      else openPicker();
+      return;
+    }
+    openPicker();
   }
 
   async function refresh(announce = true) {
@@ -55,6 +96,7 @@
       photos = result.photos;
       const next: Record<string, string> = {};
       for (const photo of photos) {
+        // Rejected objects are deleted by the server; never request their image.
         if (photo.status === 'rejected') continue;
         try {
           const url = await apiJSON<{ url: string }>(`/api/v1/photos/${photo.photo_id}/url`);
@@ -71,24 +113,26 @@
     }
   }
 
-  async function validate(file: File): Promise<string> {
+  type ValidationResult = { failure?: UploadFailure; detail?: UploadFailureDetail };
+
+  async function validate(file: File): Promise<ValidationResult> {
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      return 'We can’t read that file. Use a JPEG, PNG or WebP photo. On iPhone: Settings › Camera › Formats › Most Compatible.';
+      return { failure: 'wrong_type' };
     }
     if (file.size > maxBytes) {
-      return `That photo is ${(file.size / (1024 * 1024)).toFixed(1)} MB. The limit is 5 MB. Choose a smaller one.`;
+      return { failure: 'too_large', detail: { megabytes: file.size / (1024 * 1024) } };
     }
     try {
       const bitmap = await createImageBitmap(file);
       const pixels = bitmap.width * bitmap.height;
       bitmap.close();
       if (pixels > maxPixels) {
-        return `That photo is ${(pixels / 1_000_000).toFixed(0)} megapixels. The limit is 20. Choose a smaller version.`;
+        return { failure: 'too_large', detail: { megapixels: pixels / 1_000_000 } };
       }
     } catch {
-      return 'We couldn’t read that image. Choose a different file.';
+      return { failure: 'unreadable' };
     }
-    return '';
+    return {};
   }
 
   async function selectFile(event: Event) {
@@ -99,18 +143,21 @@
   }
 
   async function uploadFile(file: File) {
-    error = '';
     cancelled = false;
     const validation = await validate(file);
-    if (validation) {
-      error = validation;
+    if (validation.failure) {
+      resetUpload();
+      failure = validation.failure;
+      failureDetail = validation.detail ?? {};
       return;
     }
 
     pendingFile = file;
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     previewUrl = URL.createObjectURL(file);
-    uploadFailed = false;
+    failure = '';
+    failureDetail = {};
+    slotLimit = false;
     busy = true;
     uploading = true;
     processing = false;
@@ -118,15 +165,51 @@
     stage = 'Uploading…';
 
     try {
-      const slot = await apiJSON<{ photo_id: string; upload_url: string }>(
-        '/api/v1/photos/upload-url',
-        { method: 'POST' }
-      );
+      let slot: { photo_id: string; upload_url: string };
+      try {
+        slot = await apiJSON<{ photo_id: string; upload_url: string }>(
+          '/api/v1/photos/upload-url',
+          { method: 'POST' }
+        );
+      } catch (problem) {
+        if (problem instanceof ApiError && problem.status === 409) {
+          slotLimit = true;
+          resetUpload();
+          await refresh(false);
+          return;
+        }
+        if (problem instanceof ApiError && problem.status === 503) {
+          failure = 'storage_unavailable';
+          return;
+        }
+        throw problem;
+      }
       await putWithProgress(slot.upload_url, file);
       uploading = false;
       processing = true;
       stage = 'Checking…';
-      await apiJSON(`/api/v1/photos/${slot.photo_id}/process`, { method: 'POST' });
+      try {
+        await apiJSON(`/api/v1/photos/${slot.photo_id}/process`, { method: 'POST' });
+      } catch (problem) {
+        if (problem instanceof ApiError && problem.status === 409) {
+          failure = 'expired';
+          resetUpload();
+          await refresh(false);
+          return;
+        }
+        if (problem instanceof ApiError && problem.status === 503) {
+          // The preview and the file stay so the owner can retry by hand.
+          failure = 'check_failed';
+          return;
+        }
+        if (problem instanceof ApiError && problem.status === 400) {
+          failure = 'unreadable';
+          resetUpload();
+          await refresh(false);
+          return;
+        }
+        throw problem;
+      }
       await refresh(false);
       resetUpload();
       showToast("Photo uploaded. It's being checked.");
@@ -135,21 +218,9 @@
         cancelled = false;
         return;
       }
+      failure = 'upload_failed';
       if (problem instanceof ApiError && problem.status === 503) {
-        if (uploading) {
-          error = 'Photo uploads aren’t available right now. Try again in a minute.';
-          uploadFailed = true;
-        } else {
-          error = 'We couldn’t check that photo just now. Try again.';
-          resetUpload();
-          await refresh(false);
-        }
-      } else if (problem instanceof ApiError && problem.status === 409) {
-        error = 'That upload took too long, so we cleared it. Add the photo again.';
-        resetUpload();
-      } else {
-        error = problem instanceof Error ? problem.message : 'We could not process that photo.';
-        uploadFailed = true;
+        failure = uploading ? 'upload_failed' : 'check_failed';
       }
     } finally {
       busy = false;
@@ -191,14 +262,11 @@
     cancelled = true;
     request?.abort();
     resetUpload();
+    failure = '';
     busy = false;
     uploading = false;
     processing = false;
     stage = '';
-  }
-
-  function retryUpload() {
-    if (pendingFile) void uploadFile(pendingFile);
   }
 
   function resetUpload() {
@@ -206,24 +274,25 @@
     previewUrl = '';
     pendingFile = null;
     progress = 0;
-    uploadFailed = false;
     processing = false;
   }
 
   async function checkAgain(photo: Photo) {
-    error = '';
     busy = true;
     stage = 'Checking again…';
     try {
       await apiJSON(`/api/v1/photos/${photo.photo_id}/process`, { method: 'POST' });
+      failure = '';
       await refresh();
     } catch (problem) {
       if (problem instanceof ApiError && problem.status === 409) {
-        error = 'That upload took too long, so we cleared it. Add the photo again.';
+        failure = 'expired';
+        resetUpload();
+        await refresh(false);
       } else if (problem instanceof ApiError && problem.status === 503) {
-        error = 'We couldn’t check that photo just now. Try again.';
+        failure = 'check_failed';
       } else {
-        error = problem instanceof Error ? problem.message : 'We could not check that photo.';
+        failure = 'upload_failed';
       }
     } finally {
       busy = false;
@@ -244,23 +313,44 @@
   <p class="visually-hidden" role="status" aria-live="polite">{announcement}</p>
 
   {#if previewUrl}
+    {@const copy = failure ? uploadFailureCopy(failure, failureDetail) : null}
     <div class="upload-preview">
       <img src={previewUrl} alt="Upload preview" onerror={(event) => ((event.currentTarget as HTMLImageElement).hidden = true)} />
       <div class="upload-copy">
-        <span class="chip" class:alert={uploadFailed}>{uploadFailed ? 'Upload failed' : stage || (processing ? 'Checking…' : 'Ready')}</span>
-        {#if uploading}
-          <progress class="progress-track" value={progress} max="100" aria-label="Photo upload"></progress>
-          <button class="btn btn-outline-secondary btn-sm" type="button" onclick={cancelUpload}>Cancel</button>
-        {:else if uploadFailed}
-          <button class="btn btn-outline-secondary btn-sm" type="button" onclick={retryUpload} disabled={!$online}>Try again</button>
+        {#if copy}
+          <span class="chip alert">{copy.chip}</span>
+          <p class="mb-0" role="alert">{copy.message}</p>
+          {#if failure !== 'storage_unavailable'}
+            <button class="btn btn-outline-secondary btn-sm" type="button" onclick={() => runAction(copy.action)} disabled={!$online}>
+              {actionLabel(copy.action)}
+            </button>
+          {/if}
+        {:else}
+          <span class="chip">{stage || (processing ? 'Checking…' : 'Ready')}</span>
+          {#if uploading}
+            <progress class="progress-track" value={progress} max="100" aria-label="Photo upload"></progress>
+            <button class="btn btn-outline-secondary btn-sm" type="button" onclick={cancelUpload}>Cancel</button>
+          {/if}
         {/if}
       </div>
+    </div>
+  {/if}
+
+  {#if failure && !previewUrl}
+    {@const copy = uploadFailureCopy(failure, failureDetail)}
+    <div class="upload-status" role="alert">
+      <span class="chip alert">{copy.chip}</span>
+      <p class="mb-0">{copy.message}</p>
+      <button class="btn btn-outline-secondary btn-sm" type="button" onclick={() => runAction(copy.action)} disabled={!$online}>
+        {actionLabel(copy.action)}
+      </button>
     </div>
   {/if}
 
   <div class="slots" role="list">
     {#each slots as order}
       {@const photo = photoAt(order)}
+      {@const copy = photo ? photoStatusCopy(photo.status) : null}
       <div class="slot" role="listitem">
         {#if photo && photo.status !== 'rejected' && urls[photo.photo_id]}
           <img
@@ -276,37 +366,53 @@
         {/if}
         <div class="d-flex justify-content-between align-items-center mt-2">
           <span class="score">{order === 1 ? 'Main photo' : `Photo ${order}`}</span>
-          {#if photo}
-            <span class:alert={photo.status === 'rejected'} class="chip">{photo.status === 'pending' ? 'Not confirmed' : photo.status === 'rejected' ? 'Not accepted' : 'Approved'}</span>
+          {#if copy}
+            <span class:alert={photo?.status === 'rejected'} class="chip">{copy.chip}</span>
           {/if}
         </div>
-        {#if photo?.status === 'pending'}
-          <button class="btn btn-outline-secondary btn-sm mt-2 w-100" onclick={() => checkAgain(photo)} disabled={busy || !$online}>
-            Check again
-          </button>
+        {#if photo && copy}
+          <p class="slot-copy">{copy.message}</p>
+          {#if copy.action === 'check_again'}
+            <button class="btn btn-outline-secondary btn-sm mt-2 w-100" onclick={() => checkAgain(photo)} disabled={busy || !$online}>
+              Check again
+            </button>
+          {:else if copy.action === 'upload_another'}
+            <button class="btn btn-outline-secondary btn-sm mt-2 w-100" onclick={openPicker} disabled={busy || !$online}>
+              Upload another photo
+            </button>
+          {/if}
         {/if}
       </div>
     {/each}
   </div>
 
-  {#if error}
-    <p class="alert alert-danger mb-0" role="alert">{error}</p>
+  {#if atSlotLimit}
+    <p class="slot-limit mb-0">{slotLimitCopy}</p>
+  {:else if failure === 'storage_unavailable'}
+    <div class="upload-unavailable">
+      <p class="btn btn-primary disabled mb-0" aria-disabled="true">Add a photo</p>
+      <p class="muted mb-0">{uploadFailureCopy('storage_unavailable').message}</p>
+      <button class="btn btn-outline-secondary btn-sm" type="button" onclick={() => runAction('retry')} disabled={!$online}>
+        Retry
+      </button>
+    </div>
+  {:else}
+    <label for="photo-upload-input">
+      <span class="btn btn-primary {busy || !$online ? 'disabled' : ''}">
+        <i class="bi bi-camera" aria-hidden="true"></i> {addControlText(photos.length, busy, stage)}
+      </span>
+      <small>The server validates, strips location metadata and moderates the image.</small>
+    </label>
   {/if}
-
-  <label>
-    <span class="btn btn-primary {busy || photos.length >= 3 || !$online ? 'disabled' : ''}">
-      <i class="bi bi-camera" aria-hidden="true"></i> {busy ? stage || 'Working…' : photos.length >= 3 ? '3 photos added' : 'Add a photo'}
-    </span>
-    <input
-      class="visually-hidden"
-      bind:this={fileInput}
-      type="file"
-      accept="image/jpeg,image/png,image/webp"
-      onchange={selectFile}
-      disabled={busy || photos.length >= 3 || !$online}
-    />
-    <small>The server validates, strips location metadata and moderates the image.</small>
-  </label>
+  <input
+    id="photo-upload-input"
+    class="visually-hidden"
+    bind:this={fileInput}
+    type="file"
+    accept="image/jpeg,image/png,image/webp"
+    onchange={selectFile}
+    disabled={busy || !$online}
+  />
 </section>
 
 <style>
@@ -346,6 +452,18 @@
     border-style: solid;
   }
 
+  .slot-copy {
+    margin: 0.4rem 0 0;
+    color: var(--muted);
+    font-size: 0.78rem;
+    line-height: 1.35;
+  }
+
+  .slot-limit {
+    color: var(--muted);
+    font-weight: 600;
+  }
+
   .upload-preview {
     display: grid;
     grid-template-columns: 7rem 1fr;
@@ -364,10 +482,20 @@
     border-radius: calc(var(--radius-control) - 4px);
   }
 
-  .upload-copy {
+  .upload-copy,
+  .upload-status,
+  .upload-unavailable {
     display: grid;
     justify-items: start;
     gap: 0.5rem;
+  }
+
+  .upload-status,
+  .upload-unavailable {
+    padding: 0.65rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-control);
+    background: var(--paper);
   }
 
   @media (max-width: 520px) {
