@@ -10,6 +10,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"errors"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/mail"
@@ -20,6 +21,7 @@ import (
 	"time"
 
 	"tennisconnect/internal/httpapi"
+	"tennisconnect/internal/observability"
 )
 
 // NormalizeEmail trims and validates an address, lower-casing only the domain.
@@ -169,6 +171,18 @@ func (a *Service) limitIP(ctx context.Context, w http.ResponseWriter, r *http.Re
 	return allowed
 }
 
+// logAuthFailure records one fixed-schema event per rejected sign-in action.
+// The reason is an enum; addresses, tokens and IPs never reach the log.
+func logAuthFailure(reason string) {
+	slog.Warn("auth.login_failed", "event", "auth.login_failed", "reason", reason)
+}
+
+// logAuthSuccess records a completed sign-in with a pseudonymous actor ref.
+func logAuthSuccess(userID string) {
+	slog.Info("auth.login_succeeded", "event", "auth.login_succeeded",
+		"actor_ref", observability.ActorRef(userID))
+}
+
 func (a *Service) CleanupExpired(ctx context.Context) error {
 	for _, query := range []string{
 		"DELETE FROM login_tokens WHERE expires_at <= now()",
@@ -204,6 +218,7 @@ func (a *Service) RequestLink(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !a.limitIP(ctx, w, r) {
+		logAuthFailure("rate_limited")
 		return
 	}
 	now := time.Now().UTC()
@@ -213,6 +228,7 @@ func (a *Service) RequestLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !allowed {
+		logAuthFailure("rate_limited")
 		w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
 		httpapi.WriteError(w, http.StatusTooManyRequests, "too many requests")
 		return
@@ -244,6 +260,7 @@ func (a *Service) RequestLink(w http.ResponseWriter, r *http.Request) {
 		httpapi.WriteError(w, http.StatusServiceUnavailable, "sign-in email unavailable")
 		return
 	}
+	slog.Info("auth.link_requested", "event", "auth.link_requested")
 	httpapi.WriteJSON(w, http.StatusOK, map[string]string{"message": "check your email"})
 }
 
